@@ -163,7 +163,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-09, AUTH-10`
 - **Depends on:** T15
 
-### T19 — Logout + profile read/update
+### T19 — Logout + profile read/update ✅ done
 - **Files:** `auth/UserController.kt`, `auth/AuthService.kt`
 - **Do:** `POST /auth/logout`, `GET /users/me`, `PATCH /users/me`.
 - **Test:** Logout revokes refresh tokens → `204`. `GET` never includes `passwordHash` — asserted against the **raw JSON string**, not a deserialized DTO, since a DTO cannot expose a field it does not declare. `PATCH` to another user's email → `409` with nothing changed.

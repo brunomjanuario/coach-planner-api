@@ -80,7 +80,9 @@ class RefreshTokenService(
         return token.userId
     }
 
-    private fun revokeAllForUser(userId: UUID) {
+    /** Also called directly by AuthService.logout (AC AUTH-P3.1) — not just reuse detection's own retry path. */
+    @Transactional
+    fun revokeAllForUser(userId: UUID) {
         val now = Instant.now()
         val activeTokens = refreshTokenRepository.findAllByUserIdAndRevokedAtIsNull(userId)
         activeTokens.forEach { it.revokedAt = now }

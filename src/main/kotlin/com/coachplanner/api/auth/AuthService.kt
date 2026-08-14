@@ -3,13 +3,16 @@ package com.coachplanner.api.auth
 import com.coachplanner.api.auth.dto.AuthResponse
 import com.coachplanner.api.auth.dto.LoginRequest
 import com.coachplanner.api.auth.dto.RegisterRequest
+import com.coachplanner.api.auth.dto.UpdateProfileRequest
 import com.coachplanner.api.auth.dto.UserDto
 import com.coachplanner.api.common.ConflictException
+import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.UnauthorizedException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
 
 private const val EMAIL_ALREADY_REGISTERED = "email-already-registered"
 private const val INVALID_CREDENTIALS = "invalid-credentials"
@@ -75,6 +78,39 @@ class AuthService(
         val user = userRepository.findById(userId)
             .orElseThrow { UnauthorizedException(INVALID_CREDENTIALS_MESSAGE, type = INVALID_CREDENTIALS) }
         return issueTokens(user)
+    }
+
+    /** Revokes every refresh token for the user — the access token itself keeps working until it naturally expires (15 min). */
+    fun logout(userId: UUID) {
+        refreshTokenService.revokeAllForUser(userId)
+    }
+
+    fun getProfile(userId: UUID): UserDto =
+        UserDto.from(userRepository.findById(userId).orElseThrow { NotFoundException("User not found.") })
+
+    /**
+     * Email uniqueness is checked, and the check's own exception thrown,
+     * *before* either field is mutated on the entity — a rejected PATCH
+     * leaves the user genuinely untouched, not just rolled back at the
+     * transaction boundary (AC AUTH-P3.3).
+     */
+    @Transactional
+    fun updateProfile(userId: UUID, request: UpdateProfileRequest): UserDto {
+        val user = userRepository.findById(userId).orElseThrow { NotFoundException("User not found.") }
+
+        val newEmail = request.email?.trim()
+        if (newEmail != null && newEmail != user.email && userRepository.existsByEmail(newEmail)) {
+            throw ConflictException("Email already registered.", type = EMAIL_ALREADY_REGISTERED)
+        }
+
+        request.name?.let { user.name = it.trim() }
+        newEmail?.let { user.email = it }
+
+        return try {
+            UserDto.from(userRepository.saveAndFlush(user))
+        } catch (ex: DataIntegrityViolationException) {
+            throw ConflictException("Email already registered.", type = EMAIL_ALREADY_REGISTERED)
+        }
     }
 
     private fun issueTokens(user: User): AuthResponse =
