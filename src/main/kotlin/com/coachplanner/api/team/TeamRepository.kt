@@ -1,6 +1,6 @@
 package com.coachplanner.api.team
 
-import org.springframework.data.jpa.repository.JpaRepository
+import com.coachplanner.api.common.OwnedRepository
 import java.util.UUID
 
-interface TeamRepository : JpaRepository<Team, UUID>
+interface TeamRepository : OwnedRepository<Team, UUID>

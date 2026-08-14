@@ -1,6 +1,6 @@
 package com.coachplanner.api.standings
 
-import org.springframework.data.jpa.repository.JpaRepository
+import com.coachplanner.api.common.OwnedRepository
 import java.util.UUID
 
-interface RivalRowRepository : JpaRepository<RivalRow, UUID>
+interface RivalRowRepository : OwnedRepository<RivalRow, UUID>

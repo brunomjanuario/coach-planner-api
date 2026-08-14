@@ -177,7 +177,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-P3.4, P3.5`
 - **Depends on:** T19
 
-### T21 — Ownership plumbing + isolation harness
+### T21 — Ownership plumbing + isolation harness ✅ done
 - **Files:** `common/OwnedRepository.kt`, `common/CurrentUser.kt`, `src/test/kotlin/.../OwnershipIsolationIT.kt`
 - **Do:** Resolve `ownerId` from the JWT subject into controller methods. `OwnedRepository` shapes every finder to take `ownerId`, so an unscoped query does not compile. **No endpoint accepts an owner id from the request.**
 - **Test:** A reusable two-user fixture plus a parameterised test that later phases extend one line at a time as each entity lands.

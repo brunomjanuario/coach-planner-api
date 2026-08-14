@@ -1,6 +1,6 @@
 package com.coachplanner.api.reference
 
-import org.springframework.data.jpa.repository.JpaRepository
+import com.coachplanner.api.common.OwnedRepository
 import java.util.UUID
 
-interface OpponentRepository : JpaRepository<Opponent, UUID>
+interface OpponentRepository : OwnedRepository<Opponent, UUID>
