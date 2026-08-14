@@ -14,6 +14,12 @@ class PlayerService(
     private val playerRepository: PlayerRepository,
 ) {
 
+    @Transactional(readOnly = true)
+    fun getAll(teamId: UUID, ownerId: UUID): List<PlayerDto> =
+        findOwnedTeam(teamId, ownerId).players.map { PlayerDto.from(it) }
+
+    fun getById(teamId: UUID, playerId: UUID, ownerId: UUID): PlayerDto = PlayerDto.from(findOwnedPlayer(teamId, playerId, ownerId))
+
     @Transactional
     fun create(teamId: UUID, ownerId: UUID, request: CreatePlayerRequest): PlayerDto {
         val team = findOwnedTeam(teamId, ownerId)
@@ -41,6 +47,12 @@ class PlayerService(
         request.concededGoals?.let { player.concededGoals = it }
 
         return PlayerDto.from(playerRepository.saveAndFlush(player))
+    }
+
+    /** No manual cascade code — cards/ratings tied to this player rely on the schema's FK actions (AD-107), same as team delete (T23). */
+    @Transactional
+    fun delete(teamId: UUID, playerId: UUID, ownerId: UUID) {
+        playerRepository.delete(findOwnedPlayer(teamId, playerId, ownerId))
     }
 
     /** A playerId that exists but under a different teamId in the path is a 404 (AC PLAY-11) — not found via this team, full stop. */

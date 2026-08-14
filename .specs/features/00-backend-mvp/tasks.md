@@ -209,7 +209,7 @@ never closes a task.
 - **Done when:** Green. `AC PLAY-06…09`
 - **Depends on:** T22
 
-### T25 — Player read & delete
+### T25 — Player read & delete ✅ done
 - **Files:** `team/PlayerController.kt`
 - **Do:** `GET` list, `GET` one, `DELETE`.
 - **Test:** Delete removes the player's cards and ratings → `204`. A `playerId` that exists but under a different `teamId` in the path → `404`.
