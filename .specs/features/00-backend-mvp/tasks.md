@@ -195,7 +195,7 @@ never closes a task.
 - **Done when:** Green. `AC TEAM-01…04`
 - **Depends on:** T21
 
-### T23 — Team delete + cascade
+### T23 — Team delete + cascade ✅ done
 - **Files:** `team/TeamService.kt`, `team/TeamController.kt`
 - **Do:** `DELETE /teams/{id}` relying on the schema's FK actions (AD-107) — **no manual cascade code**.
 - **Test:** After deletion: players, their cards and their ratings are gone; that team's trainings and games still exist with `teamId: null`. Fixtures are created through the API where those endpoints exist, and via repositories where they do not yet.

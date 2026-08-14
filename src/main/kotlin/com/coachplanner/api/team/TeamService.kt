@@ -41,6 +41,18 @@ class TeamService(private val teamRepository: TeamRepository) {
         return TeamDto.from(teamRepository.saveAndFlush(team))
     }
 
+    /**
+     * No manual cascade code: deleting the Team relies on the schema's FK
+     * actions (AD-107) — trainings/games survive with team_id nulled
+     * (they're not part of Team's JPA object graph at all, so only the DB
+     * FK action touches them), and cards/ratings are removed transitively
+     * once their owning player row is gone.
+     */
+    @Transactional
+    fun delete(id: UUID, ownerId: UUID) {
+        teamRepository.delete(findOwned(id, ownerId))
+    }
+
     private fun findOwned(id: UUID, ownerId: UUID): Team =
         teamRepository.findByIdAndOwnerId(id, ownerId) ?: throw NotFoundException("Team not found.")
 }
