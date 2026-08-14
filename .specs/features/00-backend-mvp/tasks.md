@@ -85,7 +85,7 @@ never closes a task.
 - **Done when:** Green.
 - **Depends on:** T6
 
-### T9 — Entities: `Card`, `Rating`, `Competition`, `Opponent`
+### T9 — Entities: `Card`, `Rating`, `Competition`, `Opponent` ✅ done
 - **Files:** `discipline/Card.kt`, `discipline/Rating.kt`, `reference/Competition.kt`, `reference/Opponent.kt`, repositories
 - **Do:** `Rating` carries nullable `trainingId`/`gameId` (AD-106) — **no polymorphic column**. Postgres enums mapped explicitly for `card_type`.
 - **Test:** `@DataJpaTest` round-trip; a rating with a training and one with a game.
