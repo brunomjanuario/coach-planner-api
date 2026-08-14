@@ -103,7 +103,7 @@ never closes a task.
 
 ## Phase 2 — Error contract (3 tasks) · `ERR-01…06`
 
-### T11 — Problem+JSON handler
+### T11 — Problem+JSON handler ✅ done
 - **Files:** `common/errors.kt`, `common/ApiExceptionHandler.kt`
 - **Do:** `NotFoundException`, `ValidationException`, `ConflictException`. One `@RestControllerAdvice` producing RFC 9457 `ProblemDetail` with a stable `type` URI per error kind (AD-109).
 - **Test:** A test controller throwing each type returns the right status and `type`.
