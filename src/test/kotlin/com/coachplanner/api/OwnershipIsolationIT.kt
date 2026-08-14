@@ -1,5 +1,6 @@
 package com.coachplanner.api
 
+import com.coachplanner.api.auth.JwtService
 import com.coachplanner.api.auth.User
 import com.coachplanner.api.auth.UserRepository
 import com.coachplanner.api.common.newId
@@ -11,18 +12,29 @@ import com.coachplanner.api.reference.Opponent
 import com.coachplanner.api.reference.OpponentRepository
 import com.coachplanner.api.standings.RivalRow
 import com.coachplanner.api.standings.RivalRowRepository
+import com.coachplanner.api.team.Player
+import com.coachplanner.api.team.PlayerRepository
 import com.coachplanner.api.team.Team
 import com.coachplanner.api.team.TeamRepository
 import com.coachplanner.api.training.Training
 import com.coachplanner.api.training.TrainingRepository
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.MethodSource
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest
-import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase
+import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertNotNull
@@ -38,23 +50,23 @@ class OwnershipCase(
 }
 
 /**
- * tasks.md T21 / AC OWN-01: a reusable two-user fixture plus a parameterised
- * test that later phases extend one line at a time as each owned entity
- * lands (six entities exist as of this task — Player/Exercise/Card/Rating
- * have no owner_id of their own, reached only through an owned parent).
- *
- * This proves OwnedRepository.findByIdAndOwnerId directly, at the
- * repository layer — no domain controllers exist yet (Phase 4+ builds
- * those), so there is no HTTP-level 404-not-403 behavior to test until
- * then. This is the mechanism the later HTTP-level tests will rely on.
+ * tasks.md T21 / AC OWN-01 (repository-level, one line per owned entity)
+ * and T26 / AC TEAM-02 (HTTP-level, now that TeamController/PlayerController
+ * exist): user B must receive 404 — never 403 — reading, patching or
+ * deleting user A's team or anything beneath it. @SpringBootTest +
+ * @AutoConfigureMockMvc replaces the original @DataJpaTest slice from T21
+ * so both kinds of check can live in one file, per tasks.md's own file list.
  */
-@DataJpaTest
-@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@SpringBootTest
+@AutoConfigureMockMvc
 @Import(TestcontainersConfiguration::class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class OwnershipIsolationIT @Autowired constructor(
+    private val mockMvc: MockMvc,
+    private val jwtService: JwtService,
     private val userRepository: UserRepository,
     private val teamRepository: TeamRepository,
+    private val playerRepository: PlayerRepository,
     private val trainingRepository: TrainingRepository,
     private val gameRepository: GameRepository,
     private val rivalRowRepository: RivalRowRepository,
@@ -70,6 +82,8 @@ class OwnershipIsolationIT @Autowired constructor(
         ownerA = userRepository.saveAndFlush(User(email = "owner-a-${newId()}@example.com", name = "A", passwordHash = "hash"))
         ownerB = userRepository.saveAndFlush(User(email = "owner-b-${newId()}@example.com", name = "B", passwordHash = "hash"))
     }
+
+    private fun tokenFor(user: User) = "Bearer ${jwtService.issueAccessToken(user.id)}"
 
     fun cases(): List<OwnershipCase> = listOf(
         OwnershipCase(
@@ -117,5 +131,48 @@ class OwnershipIsolationIT @Autowired constructor(
 
         assertNotNull(case.find(id, ownerA.id), "expected ${case.label} to be found by its real owner")
         assertNull(case.find(id, ownerB.id), "expected ${case.label} to be invisible to a different user")
+    }
+
+    @Test
+    fun `user B gets 404, never 403, reading, patching and deleting user A's team`() {
+        val team = teamRepository.saveAndFlush(Team(ownerId = ownerA.id, name = "A's Team"))
+        val tokenB = tokenFor(ownerB)
+
+        mockMvc.perform(get("/api/v1/teams/${team.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(
+            patch("/api/v1/teams/${team.id}")
+                .header(HttpHeaders.AUTHORIZATION, tokenB)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Hijacked"}"""),
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(delete("/api/v1/teams/${team.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `user B gets 404, never 403, on every player path beneath user A's team`() {
+        val team = teamRepository.saveAndFlush(Team(ownerId = ownerA.id, name = "A's Team"))
+        val player = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+        val tokenB = tokenFor(ownerB)
+
+        mockMvc.perform(get("/api/v1/teams/${team.id}/players").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(get("/api/v1/teams/${team.id}/players/${player.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(
+            post("/api/v1/teams/${team.id}/players")
+                .header(HttpHeaders.AUTHORIZATION, tokenB)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Intruder"}"""),
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(
+            patch("/api/v1/teams/${team.id}/players/${player.id}")
+                .header(HttpHeaders.AUTHORIZATION, tokenB)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Hijacked"}"""),
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(delete("/api/v1/teams/${team.id}/players/${player.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
     }
 }

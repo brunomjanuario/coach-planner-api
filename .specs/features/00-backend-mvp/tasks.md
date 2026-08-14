@@ -216,7 +216,7 @@ never closes a task.
 - **Done when:** Green. `AC PLAY-10, PLAY-11`
 - **Depends on:** T24
 
-### T26 — Team/player isolation
+### T26 — Team/player isolation ✅ done
 - **Files:** `OwnershipIsolationIT.kt`
 - **Do:** Extend the T21 harness to teams and players.
 - **Test:** User B receives `404` — never `403` — reading, patching and deleting user A's team, and on every player path beneath it.
