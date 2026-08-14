@@ -1,12 +1,15 @@
 package com.coachplanner.api.auth
 
+import com.coachplanner.api.auth.dto.ChangePasswordRequest
 import com.coachplanner.api.auth.dto.UpdateProfileRequest
 import com.coachplanner.api.auth.dto.UserDto
 import jakarta.validation.Valid
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
@@ -22,6 +25,12 @@ class UserController(private val authService: AuthService) {
     @PatchMapping("/me")
     fun updateMe(@AuthenticationPrincipal jwt: Jwt, @Valid @RequestBody request: UpdateProfileRequest): UserDto =
         authService.updateProfile(currentUserId(jwt), request)
+
+    @PutMapping("/me/password")
+    fun changePassword(@AuthenticationPrincipal jwt: Jwt, @Valid @RequestBody request: ChangePasswordRequest): ResponseEntity<Void> {
+        authService.changePassword(currentUserId(jwt), request)
+        return ResponseEntity.noContent().build()
+    }
 
     private fun currentUserId(jwt: Jwt): UUID = UUID.fromString(jwt.subject)
 }

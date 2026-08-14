@@ -170,7 +170,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-P3.1…3.3`
 - **Depends on:** T17
 
-### T20 — Password change
+### T20 — Password change ✅ done
 - **Files:** `auth/UserController.kt`, `auth/AuthService.kt`
 - **Do:** `PUT /users/me/password` — verify current, rehash, revoke all refresh tokens.
 - **Test:** Success → `204`, old refresh token now rejected, login with the new password succeeds. Wrong current password → `400 incorrect-password` and the stored hash is **unchanged** (asserted by re-authenticating with the old password).

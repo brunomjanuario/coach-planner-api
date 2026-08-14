@@ -1,6 +1,7 @@
 package com.coachplanner.api.auth
 
 import com.coachplanner.api.auth.dto.AuthResponse
+import com.coachplanner.api.auth.dto.ChangePasswordRequest
 import com.coachplanner.api.auth.dto.LoginRequest
 import com.coachplanner.api.auth.dto.RegisterRequest
 import com.coachplanner.api.auth.dto.UpdateProfileRequest
@@ -8,6 +9,7 @@ import com.coachplanner.api.auth.dto.UserDto
 import com.coachplanner.api.common.ConflictException
 import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.UnauthorizedException
+import com.coachplanner.api.common.ValidationException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -17,6 +19,7 @@ import java.util.UUID
 private const val EMAIL_ALREADY_REGISTERED = "email-already-registered"
 private const val INVALID_CREDENTIALS = "invalid-credentials"
 private const val INVALID_CREDENTIALS_MESSAGE = "Invalid email or password."
+private const val INCORRECT_PASSWORD = "incorrect-password"
 
 @Service
 class AuthService(
@@ -111,6 +114,25 @@ class AuthService(
         } catch (ex: DataIntegrityViolationException) {
             throw ConflictException("Email already registered.", type = EMAIL_ALREADY_REGISTERED)
         }
+    }
+
+    /**
+     * The current-password check happens before any mutation — a wrong
+     * current password leaves the stored hash genuinely unchanged, not
+     * just rolled back (AC AUTH-P3.5). Revoking every refresh token forces
+     * re-authentication everywhere else the old password was trusted.
+     */
+    @Transactional
+    fun changePassword(userId: UUID, request: ChangePasswordRequest) {
+        val user = userRepository.findById(userId).orElseThrow { NotFoundException("User not found.") }
+
+        if (!passwordEncoder.matches(request.currentPassword, user.passwordHash)) {
+            throw ValidationException("Current password is incorrect.", type = INCORRECT_PASSWORD)
+        }
+
+        user.passwordHash = passwordEncoder.encode(request.newPassword)!!
+        userRepository.saveAndFlush(user)
+        refreshTokenService.revokeAllForUser(userId)
     }
 
     private fun issueTokens(user: User): AuthResponse =
