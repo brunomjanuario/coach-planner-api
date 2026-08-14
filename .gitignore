@@ -1,0 +1,44 @@
+# Environment
+.env
+.env.local
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+# Kotlin / Java
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+hs_err_pid*
+replay_pid*
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.vscode/
+.classpath
+.project
+.settings/
+out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Test / coverage
+.kotlin/
+/test-results/
+/coverage/
