@@ -5,30 +5,33 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplicat
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.config.http.SessionCreationPolicy
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
 import org.springframework.security.web.SecurityFilterChain
+import org.springframework.web.cors.CorsConfiguration
+import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource
+import tools.jackson.databind.json.JsonMapper
 import javax.crypto.spec.SecretKeySpec
 
 private const val BCRYPT_STRENGTH = 12
 private const val HMAC_ALGORITHM = "HmacSHA256"
+private const val VITE_DEV_ORIGIN = "http://localhost:5173"
 
 /**
- * PLACEHOLDER filter chain — T18 replaces it wholesale with the full JWT
- * resource-server chain per design.md (stateless, CORS, the complete public
- * path list, a parameterised test over every protected path). It exists now
- * only because spring-boot-starter-security has been on the classpath since
- * T1, so Spring Security secures every endpoint by default the moment a
- * datasource exists.
- *
- * /api/v1/auth/register is added here as the minimal necessary extension
- * for T14 (a new user isn't authenticated yet) — not the real allowlist.
- * T15 adds JWT verification (a JwtDecoder bean, wired via .oauth2ResourceServer)
- * so bearer tokens are actually checked on every other path; T18 still
- * owns the complete public-path list, CORS, and statelessness.
+ * The real resource-server chain (AC AUTH-09, AUTH-10, design.md). Stateless
+ * — every request authenticates itself via its bearer token, no session.
+ * Public: the actuator paths T5 needed, and the three auth endpoints that
+ * necessarily precede having a token (register/login/refresh). Everything
+ * else under the /api/v1 prefix requires a valid, unexpired, correctly-signed JWT.
+ * A ProblemJsonAuthenticationEntryPoint replaces Spring Security's default
+ * 401 (WWW-Authenticate header only) with the same RFC 9457 shape every
+ * other error in this API uses (AD-109), and distinguishes an expired
+ * token from any other failure.
  *
  * @ConditionalOnWebApplication is on filterChain specifically, not the
  * class: HttpSecurity is only available as a bean in a web application
@@ -44,7 +47,7 @@ class SecurityConfig {
 
     @Bean
     @ConditionalOnWebApplication
-    fun filterChain(http: HttpSecurity, jwtDecoder: JwtDecoder): SecurityFilterChain {
+    fun filterChain(http: HttpSecurity, jwtDecoder: JwtDecoder, jsonMapper: JsonMapper): SecurityFilterChain {
         http
             .authorizeHttpRequests {
                 it.requestMatchers(
@@ -53,9 +56,29 @@ class SecurityConfig {
                 ).permitAll()
                     .anyRequest().authenticated()
             }
-            .oauth2ResourceServer { it.jwt { jwt -> jwt.decoder(jwtDecoder) } }
+            .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
+            .cors { it.configurationSource(corsConfigurationSource()) }
+            .oauth2ResourceServer {
+                // OAuth2ResourceServerConfigurer registers its own entry point for bearer-token
+                // requests (a DelegatingAuthenticationEntryPoint keyed by request matcher), which
+                // overrides a generic .exceptionHandling { it.authenticationEntryPoint(...) } —
+                // it has to be set here specifically, verified by the 401 body actually being empty
+                // until this moved from .exceptionHandling to this exact hook.
+                it.authenticationEntryPoint(ProblemJsonAuthenticationEntryPoint(jsonMapper))
+                it.jwt { jwt -> jwt.decoder(jwtDecoder) }
+            }
             .csrf { it.disable() }
         return http.build()
+    }
+
+    private fun corsConfigurationSource(): CorsConfigurationSource {
+        val configuration = CorsConfiguration().apply {
+            allowedOrigins = listOf(VITE_DEV_ORIGIN)
+            allowedMethods = listOf("GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS")
+            allowedHeaders = listOf("*")
+            allowCredentials = true
+        }
+        return UrlBasedCorsConfigurationSource().apply { registerCorsConfiguration("/**", configuration) }
     }
 
     /** bcrypt cost 12 (AC AUTH-01) — used by AuthService to hash passwords on register/password-change. */

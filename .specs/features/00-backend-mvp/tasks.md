@@ -156,7 +156,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-06, AUTH-07`
 - **Depends on:** T16
 
-### T18 — Security filter chain
+### T18 — Security filter chain ✅ done
 - **Files:** `config/SecurityConfig.kt`
 - **Do:** Stateless resource-server chain. Public: `/auth/register`, `/auth/login`, `/auth/refresh`, `/actuator/health`. Everything under `/api/v1/**` authenticated. CORS for the Vite dev origin.
 - **Test:** A parameterised test hits **every** protected path with no token and asserts `401`; each public path succeeds without one. An expired token yields `token-expired`, distinguishable from a malformed one.

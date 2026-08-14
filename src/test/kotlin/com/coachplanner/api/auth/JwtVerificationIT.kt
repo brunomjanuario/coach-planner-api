@@ -17,12 +17,17 @@ import org.springframework.http.HttpHeaders
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.Date
 
-/** tasks.md T15: issue -> verify round-trip, expired rejection, wrong-key rejection — all as 401, never 500. */
+/**
+ * tasks.md T15: issue -> verify round-trip, expired rejection, wrong-key
+ * rejection — all as 401, never 500. Also T18 / AC AUTH-10: an expired
+ * token's problem+json `type` is distinguishable from any other failure's.
+ */
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestcontainersConfiguration::class)
@@ -54,20 +59,22 @@ class JwtVerificationIT @Autowired constructor(
     }
 
     @Test
-    fun `an expired token is rejected with 401, never 500`() {
+    fun `an expired token is rejected with 401 and problem type token-expired`() {
         val expired = signedJwt(realSecret, newId().toString(), Instant.now().minus(1, ChronoUnit.MINUTES))
 
         mockMvc.perform(get("/__test/whoami").header(HttpHeaders.AUTHORIZATION, "Bearer $expired"))
             .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/token-expired"))
     }
 
     @Test
-    fun `a token signed with a different key is rejected with 401, never 500`() {
+    fun `a token signed with a different key is rejected with 401 and a type distinct from token-expired`() {
         val wrongKeySecret = "a-completely-different-secret-that-does-not-match-app-jwt-secret!!"
         val wrongKeyToken = signedJwt(wrongKeySecret, newId().toString(), Instant.now().plus(15, ChronoUnit.MINUTES))
 
         mockMvc.perform(get("/__test/whoami").header(HttpHeaders.AUTHORIZATION, "Bearer $wrongKeyToken"))
             .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/unauthorized"))
     }
 
     @Test
