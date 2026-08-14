@@ -401,7 +401,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata:/var/lib/postgresql   # NOT /var/lib/postgresql/data — see note below
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-coachplanner} -d ${POSTGRES_DB:-coachplanner}"]
       interval: 5s
@@ -427,6 +427,12 @@ volumes:
   rather than starting a database with a blank password.
 - A named volume, not a bind mount — bind mounts on macOS are slow and leak
   root-owned files into the working tree.
+- **The volume mounts at `/var/lib/postgresql`, not `/var/lib/postgresql/data`.**
+  Confirmed during T2 execution: the official image made this change starting
+  at Postgres 18 — `PGDATA` became version-specific
+  (`/var/lib/postgresql/18/docker`) and the image's `VOLUME` moved to the
+  parent directory so `pg_upgrade --link` can work across major versions.
+  Mounting at the old `.../data` path makes the container refuse to start.
 - `.env.example` is committed; `.env` is gitignored.
 - No init SQL scripts: Flyway owns the schema, and two migration mechanisms is
   one too many.

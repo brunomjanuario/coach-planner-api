@@ -29,7 +29,7 @@ never closes a task.
 - **Done when:** `./gradlew test` green. **If the combination does not boot, STOP and report** — do not work around it silently; the fallbacks are in `design.md`'s risk table and the choice is the user's.
 - **Depends on:** —
 
-### T2 — Docker Compose for PostgreSQL 18
+### T2 — Docker Compose for PostgreSQL 18 ✅ done
 - **Files:** `docker-compose.yml`, `.env.example`, `.gitignore`, `README.md`
 - **Do:** The `db` service exactly as in `design.md` — named volume, `pg_isready` healthcheck, `POSTGRES_PASSWORD` with `:?` so a missing `.env` fails loudly. `.env` gitignored.
 - **Test:** Manual, recorded in the commit message: `docker compose up -d db` → healthy within 30s; `docker compose down && up -d db` → data survives.
