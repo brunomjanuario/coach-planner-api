@@ -188,7 +188,7 @@ never closes a task.
 
 ## Phase 4 — Teams & players (5 tasks) · `TEAM-01…04`, `PLAY-01…04`
 
-### T22 — Team CRUD
+### T22 — Team CRUD ✅ done
 - **Files:** `team/TeamService.kt`, `team/TeamController.kt`, `team/dto/*`
 - **Do:** `GET /teams`, `GET /teams/{id}`, `POST /teams`, `PATCH /teams/{id}`. Players nested, ordered by shirt number then name.
 - **Test:** List returns only the caller's teams; create returns `201` + `Location` + empty `players[]`; `PATCH` with a partial body touches only those fields and **never** `players`; an empty `PATCH` body returns `200` unchanged. `Edge case: empty PATCH`
