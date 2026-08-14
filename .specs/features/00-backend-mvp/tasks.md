@@ -92,7 +92,7 @@ never closes a task.
 - **Done when:** Green.
 - **Depends on:** T6
 
-### T10 — Constraint & cascade test suite
+### T10 — Constraint & cascade test suite ✅ done
 - **Files:** `src/test/kotlin/.../ConstraintsIT.kt`, `CascadeIT.kt`
 - **Do:** No production code — this task is the safety net for `design.md`'s cascade matrix.
 - **Test:** Attempt each illegal write **directly against the repository**, bypassing service validation: a rating with both event FKs set and with neither; a game with one score null; a rival row where `won+drawn+lost ≠ played`; two competitions differing only in case; two ratings for one `(player, game)`. Then walk the full cascade matrix: delete team → players/cards/ratings gone, trainings/games survive with null `team_id`; delete game → cards/ratings gone; delete training → exercises/ratings gone.
