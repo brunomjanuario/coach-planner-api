@@ -142,7 +142,7 @@ never closes a task.
 - **Done when:** Green.
 - **Depends on:** T14
 
-### T16 — Login
+### T16 — Login ✅ done
 - **Files:** `auth/AuthService.kt`, `auth/AuthController.kt`
 - **Do:** `POST /auth/login`.
 - **Test:** Correct pair → `200` + token pair. **Wrong password and unknown email return byte-identical bodies** — asserted by comparing the two responses, not by eyeballing them. Password verification runs even for an unknown email so timing does not distinguish the cases.

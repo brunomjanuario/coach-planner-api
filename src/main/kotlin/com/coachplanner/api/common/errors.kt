@@ -13,3 +13,5 @@ class NotFoundException(message: String, type: String = "not-found") : ApiExcept
 class ValidationException(message: String, type: String = "validation-failed") : ApiException(message, type)
 
 class ConflictException(message: String, type: String = "conflict") : ApiException(message, type)
+
+class UnauthorizedException(message: String, type: String = "unauthorized") : ApiException(message, type)

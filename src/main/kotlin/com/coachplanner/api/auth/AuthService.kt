@@ -1,15 +1,19 @@
 package com.coachplanner.api.auth
 
 import com.coachplanner.api.auth.dto.AuthResponse
+import com.coachplanner.api.auth.dto.LoginRequest
 import com.coachplanner.api.auth.dto.RegisterRequest
 import com.coachplanner.api.auth.dto.UserDto
 import com.coachplanner.api.common.ConflictException
+import com.coachplanner.api.common.UnauthorizedException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 private const val EMAIL_ALREADY_REGISTERED = "email-already-registered"
+private const val INVALID_CREDENTIALS = "invalid-credentials"
+private const val INVALID_CREDENTIALS_MESSAGE = "Invalid email or password."
 
 @Service
 class AuthService(
@@ -41,6 +45,28 @@ class AuthService(
 
         return issueTokens(user)
     }
+
+    /**
+     * Password verification always runs, even when the email is unknown —
+     * against a fixed dummy hash computed once — so a coach probing for
+     * valid accounts can't distinguish "wrong password" from "no such
+     * account" by response time. Both failure paths throw the identical
+     * exception (same message, same type), so the resulting problem+json
+     * bodies are byte-identical (AC AUTH-05).
+     */
+    fun login(request: LoginRequest): AuthResponse {
+        val user = userRepository.findByEmail(request.email.trim())
+        val hashToCheck = user?.passwordHash ?: dummyHash
+        val passwordMatches = passwordEncoder.matches(request.password, hashToCheck)
+
+        if (user == null || !passwordMatches) {
+            throw UnauthorizedException(INVALID_CREDENTIALS_MESSAGE, type = INVALID_CREDENTIALS)
+        }
+
+        return issueTokens(user)
+    }
+
+    private val dummyHash: String by lazy { passwordEncoder.encode("dummy-password-for-timing-parity")!! }
 
     private fun issueTokens(user: User): AuthResponse =
         AuthResponse(

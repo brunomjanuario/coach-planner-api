@@ -28,6 +28,9 @@ class ApiExceptionHandler {
     @ExceptionHandler(ConflictException::class)
     fun handleConflict(ex: ConflictException): ProblemDetail = problem(HttpStatus.CONFLICT, ex.type, ex.message)
 
+    @ExceptionHandler(UnauthorizedException::class)
+    fun handleUnauthorized(ex: UnauthorizedException): ProblemDetail = problem(HttpStatus.UNAUTHORIZED, ex.type, ex.message)
+
     /** AC ERR-02: a field-keyed `errors` extension member, not just a generic message. */
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleBeanValidation(ex: MethodArgumentNotValidException): ProblemDetail {

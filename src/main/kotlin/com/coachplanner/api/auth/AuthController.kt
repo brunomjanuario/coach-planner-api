@@ -1,6 +1,7 @@
 package com.coachplanner.api.auth
 
 import com.coachplanner.api.auth.dto.AuthResponse
+import com.coachplanner.api.auth.dto.LoginRequest
 import com.coachplanner.api.auth.dto.RegisterRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -19,4 +20,8 @@ class AuthController(private val authService: AuthService) {
         val response = authService.register(request)
         return ResponseEntity.status(HttpStatus.CREATED).body(response)
     }
+
+    @PostMapping("/login")
+    fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> =
+        ResponseEntity.ok(authService.login(request))
 }
