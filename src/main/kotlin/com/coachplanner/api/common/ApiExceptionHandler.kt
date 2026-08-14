@@ -5,6 +5,7 @@ import org.springframework.dao.DataAccessResourceFailureException
 import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
@@ -56,6 +57,19 @@ class ApiExceptionHandler {
     @ExceptionHandler(MethodArgumentTypeMismatchException::class)
     fun handleTypeMismatch(ex: MethodArgumentTypeMismatchException): ProblemDetail =
         problem(HttpStatus.BAD_REQUEST, "malformed-parameter", "The '${ex.name}' parameter is malformed.")
+
+    /**
+     * A malformed request body — including a string that doesn't match any
+     * enum constant (e.g. position: "STRIKER", T24) — throws this from the
+     * message-converter layer before the controller method (and @Valid)
+     * ever run. Without this handler it would fall through to the
+     * catch-all below and surface as a 500, since HttpMessageNotReadableException
+     * is-a Exception and Spring's own default 400 mapping never gets a
+     * chance once a broader @ExceptionHandler(Exception::class) exists.
+     */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleMalformedBody(ex: HttpMessageNotReadableException): ProblemDetail =
+        problem(HttpStatus.BAD_REQUEST, "malformed-request-body", "The request body is malformed or contains an invalid value.")
 
     /**
      * AC ERR-03: the last-resort catch-all. The stack trace is logged (with

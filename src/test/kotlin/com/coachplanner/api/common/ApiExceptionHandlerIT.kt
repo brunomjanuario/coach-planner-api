@@ -75,6 +75,18 @@ class ApiExceptionHandlerIT @Autowired constructor(private val mockMvc: MockMvc)
     }
 
     @Test
+    fun `a request body that fails to parse (wrong type for a field) is a 400, never a 500`() {
+        mockMvc.perform(
+            post("/__test/problems/bean-validation")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name": "Coach", "age": "not-a-number"}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(content().contentType(MediaType.APPLICATION_PROBLEM_JSON))
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/malformed-request-body"))
+    }
+
+    @Test
     fun `DataAccessResourceFailureException becomes a 503 database-unavailable, not a 500`() {
         mockMvc.perform(get("/__test/problems/db-unavailable"))
             .andExpect(status().isServiceUnavailable)

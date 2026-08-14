@@ -202,7 +202,7 @@ never closes a task.
 - **Done when:** Green. `AC TEAM-05`
 - **Depends on:** T22
 
-### T24 — Player create & update
+### T24 — Player create & update ✅ done
 - **Files:** `team/PlayerController.kt`, `team/PlayerService.kt`, `team/dto/*`
 - **Do:** `POST` / `PATCH` under `/teams/{teamId}/players`. Position validated against the 17-code enum — deliberately stricter than the frontend's free-text field. `PATCH` accepts the stats the frontend's popup cannot currently edit.
 - **Test:** Valid create → `201`; `shirtNumber` 0 and 100 → `400`; `age` 3 and 100 → `400`; `position: "STRIKER"` → `400` with nothing persisted; a stats-only `PATCH` updates goals/assists/concededGoals.
