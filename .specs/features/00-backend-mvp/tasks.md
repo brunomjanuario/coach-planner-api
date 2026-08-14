@@ -50,7 +50,7 @@ never closes a task.
 - **Done when:** Green. **Verify the Jackson 3 Kotlin-module coordinate against current docs — do not copy a 3.x-era coordinate.** `Edge cases: unknown JSON fields`
 - **Depends on:** T1
 
-### T5 — Actuator, structured logging, fail-fast
+### T5 — Actuator, structured logging, fail-fast ✅ done
 - **Files:** `application.yml`, `config/LoggingConfig.kt` or `logback-spring.xml`
 - **Do:** Expose `health` (with `db` component) and `info` only. JSON request logging with a per-request correlation id. Fail fast on an unreachable database, logging the JDBC URL (never the password).
 - **Test:** `/actuator/health` returns `200` + `status: UP` + a `db` component; a context test with a bogus JDBC URL asserts startup failure rather than a degraded start.

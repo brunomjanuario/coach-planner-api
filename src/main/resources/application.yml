@@ -7,3 +7,17 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info # deliberately not "*" — INFRA-04/05
+  endpoint:
+    health:
+      show-details: always # so the "db" component is visible, not just top-level status
+
+logging:
+  structured:
+    format:
+      console: ecs # ECS JSON includes MDC context automatically — carries CorrelationIdFilter's requestId
