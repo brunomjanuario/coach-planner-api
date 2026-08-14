@@ -1,10 +1,14 @@
 package com.coachplanner.api.common
 
+import org.slf4j.LoggerFactory
+import org.springframework.dao.DataAccessResourceFailureException
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import java.net.URI
 
 private const val PROBLEM_BASE = "https://coachplanner.dev/problems"
@@ -12,6 +16,8 @@ private const val PROBLEM_BASE = "https://coachplanner.dev/problems"
 /** RFC 9457 `application/problem+json` for every endpoint (AD-109) — no controller builds its own error body. */
 @RestControllerAdvice
 class ApiExceptionHandler {
+
+    private val log = LoggerFactory.getLogger(ApiExceptionHandler::class.java)
 
     @ExceptionHandler(NotFoundException::class)
     fun handleNotFound(ex: NotFoundException): ProblemDetail = problem(HttpStatus.NOT_FOUND, ex.type, ex.message)
@@ -29,6 +35,36 @@ class ApiExceptionHandler {
         val errors = ex.bindingResult.fieldErrors.associate { it.field to (it.defaultMessage ?: "is invalid") }
         problemDetail.setProperty("errors", errors)
         return problemDetail
+    }
+
+    /** AC ERR-04: the DB is unreachable mid-request — a 503, never a bare 500. */
+    @ExceptionHandler(DataAccessResourceFailureException::class)
+    fun handleDatabaseUnavailable(ex: DataAccessResourceFailureException): ProblemDetail {
+        log.error("Database unavailable", ex)
+        return problem(HttpStatus.SERVICE_UNAVAILABLE, "database-unavailable", "The database is temporarily unavailable.")
+    }
+
+    /** AC ERR-05: a stale @Version write loses the race — 409, not a crash. */
+    @ExceptionHandler(OptimisticLockingFailureException::class)
+    fun handleStaleVersion(ex: OptimisticLockingFailureException): ProblemDetail =
+        problem(HttpStatus.CONFLICT, "stale-version", "This record was modified by someone else. Reload and try again.")
+
+    /** AC ERR-06: an unparseable path variable (e.g. a bogus UUID) is a 400, never a 500. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun handleTypeMismatch(ex: MethodArgumentTypeMismatchException): ProblemDetail =
+        problem(HttpStatus.BAD_REQUEST, "malformed-parameter", "The '${ex.name}' parameter is malformed.")
+
+    /**
+     * AC ERR-03: the last-resort catch-all. The stack trace is logged (with
+     * the request's correlation id, via CorrelationIdFilter's MDC context —
+     * automatic in every structured log line, not threaded through here)
+     * but never reaches the response: no exception class name, no message,
+     * no SQL fragment.
+     */
+    @ExceptionHandler(Exception::class)
+    fun handleUnexpected(ex: Exception): ProblemDetail {
+        log.error("Unhandled exception", ex)
+        return problem(HttpStatus.INTERNAL_SERVER_ERROR, "internal-error", "An unexpected error occurred.")
     }
 
     private fun problem(status: HttpStatus, typeSlug: String, detail: String?): ProblemDetail {

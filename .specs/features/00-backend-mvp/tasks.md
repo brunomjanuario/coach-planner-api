@@ -117,7 +117,7 @@ never closes a task.
 - **Done when:** Green. `AC ERR-02`
 - **Depends on:** T11
 
-### T13 — Infrastructure failure mapping
+### T13 — Infrastructure failure mapping ✅ done
 - **Files:** `common/ApiExceptionHandler.kt`
 - **Do:** Unhandled → `500`, generic detail, stack trace logged with the correlation id and **nothing leaked**. `DataAccessResourceFailureException` → `503 database-unavailable`. `OptimisticLockingFailureException` → `409 stale-version`. Unparseable UUID path variable → `400`.
 - **Test:** Each mapping asserted; the `500` test asserts the response body contains neither the exception class name nor any SQL fragment.
