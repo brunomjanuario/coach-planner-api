@@ -135,7 +135,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-01…03`
 - **Depends on:** T7, T12
 
-### T15 — JWT issue & verify
+### T15 — JWT issue & verify ✅ done
 - **Files:** `auth/JwtService.kt`, `config/SecurityConfig.kt`
 - **Do:** Signed access tokens, 15-minute expiry, user id as subject. Secret from env with **no default** in any non-dev profile.
 - **Test:** Round-trip; expired token rejected; token signed with a different key rejected as `401`, never `500`. `Edge case: wrong-key JWT`
