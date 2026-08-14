@@ -64,7 +64,7 @@ never closes a task.
 > `V1__init.sql` is written **once, whole** (T6). Flyway checksums make an
 > incrementally-edited applied migration a broken migration.
 
-### T6 — `V1__init.sql`: the complete schema
+### T6 — `V1__init.sql`: the complete schema ✅ done
 - **Files:** `src/main/resources/db/migration/V1__init.sql`
 - **Do:** Every table, enum, CHECK, FK action and index from `design.md`'s schema section, verbatim — including `citext`, the two partial unique indexes on `ratings`, the deferrable `exercises` order constraint, and the `lower(name)` uniqueness on both reference lists.
 - **Test:** `SchemaIT` queries `information_schema` and `pg_constraint` and asserts every table, every named constraint (`exactly_one_event`, `scores_recorded_together`, `results_sum_to_played`) and every FK's `ON DELETE` action.
