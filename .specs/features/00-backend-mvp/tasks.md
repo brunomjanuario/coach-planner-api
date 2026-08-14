@@ -71,7 +71,7 @@ never closes a task.
 - **Done when:** Green on a fresh container. `AC DATA-01…06`
 - **Depends on:** T3
 
-### T7 — Entities: `User`, `RefreshToken`, `Team`, `Player`
+### T7 — Entities: `User`, `RefreshToken`, `Team`, `Player` ✅ done
 - **Files:** `auth/User.kt`, `auth/RefreshToken.kt`, `team/Team.kt`, `team/Player.kt`, `common/Ids.kt`, repositories
 - **Do:** JPA mappings against T6's schema. UUIDv7 via `Ids.kt` (AD-105). `@Version` on mutable entities. `players` mapped as an ordered collection on `Team`.
 - **Test:** `@DataJpaTest` round-trip per entity; `ddl-auto: validate` passing is itself the mapping-matches-schema proof.
