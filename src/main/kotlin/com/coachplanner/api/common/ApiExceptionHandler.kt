@@ -2,6 +2,7 @@ package com.coachplanner.api.common
 
 import org.springframework.http.HttpStatus
 import org.springframework.http.ProblemDetail
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import java.net.URI
@@ -20,6 +21,15 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(ConflictException::class)
     fun handleConflict(ex: ConflictException): ProblemDetail = problem(HttpStatus.CONFLICT, ex.type, ex.message)
+
+    /** AC ERR-02: a field-keyed `errors` extension member, not just a generic message. */
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleBeanValidation(ex: MethodArgumentNotValidException): ProblemDetail {
+        val problemDetail = problem(HttpStatus.BAD_REQUEST, "validation-failed", "One or more fields are invalid.")
+        val errors = ex.bindingResult.fieldErrors.associate { it.field to (it.defaultMessage ?: "is invalid") }
+        problemDetail.setProperty("errors", errors)
+        return problemDetail
+    }
 
     private fun problem(status: HttpStatus, typeSlug: String, detail: String?): ProblemDetail {
         val problemDetail = ProblemDetail.forStatus(status)

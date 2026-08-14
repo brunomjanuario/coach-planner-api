@@ -110,7 +110,7 @@ never closes a task.
 - **Done when:** Green. `AC ERR-01`
 - **Depends on:** T1
 
-### T12 — Bean-validation → field-keyed `errors`
+### T12 — Bean-validation → field-keyed `errors` ✅ done
 - **Files:** `common/ApiExceptionHandler.kt`
 - **Do:** `MethodArgumentNotValidException` → `400` with an `errors` object keyed by field name.
 - **Test:** A DTO failing two constraints yields both field keys with readable messages.
