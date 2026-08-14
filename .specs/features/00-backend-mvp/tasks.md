@@ -78,7 +78,7 @@ never closes a task.
 - **Done when:** Green.
 - **Depends on:** T6
 
-### T8 — Entities: `Training`, `Exercise`, `Game`, `RivalRow`
+### T8 — Entities: `Training`, `Exercise`, `Game`, `RivalRow` ✅ done
 - **Files:** `training/Training.kt`, `training/Exercise.kt`, `game/Game.kt`, `standings/RivalRow.kt`, repositories
 - **Do:** `Exercise.diagram` mapped as `jsonb` (Hibernate 7 `@JdbcTypeCode(SqlTypes.JSON)`). `order_index` maps to `@OrderColumn`. `duration_minutes` ↔ `duration` naming handled in DTOs, not entities.
 - **Test:** `@DataJpaTest` round-trip including a non-trivial `diagram` JSON and a null `diagram`.
