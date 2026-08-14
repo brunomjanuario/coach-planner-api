@@ -1,0 +1,9 @@
+spring:
+  application:
+    name: coach-planner-api
+  jpa:
+    hibernate:
+      ddl-auto: validate # Flyway owns the schema — never "update" (design.md)
+  flyway:
+    enabled: true
+    locations: classpath:db/migration

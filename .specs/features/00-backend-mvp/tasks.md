@@ -36,7 +36,7 @@ never closes a task.
 - **Done when:** A clean clone plus `cp .env.example .env` yields a healthy database. `AC INFRA-01`
 - **Depends on:** —
 
-### T3 — Flyway wiring + config profiles
+### T3 — Flyway wiring + config profiles ✅ done
 - **Files:** `src/main/resources/application.yml`, `application-dev.yml`, `application-test.yml`, `db/migration/V1__init.sql` (empty placeholder)
 - **Do:** Flyway on, `ddl-auto: validate` (**never** `update` — Flyway owns the schema), datasource from env vars with dev defaults matching `.env.example`.
 - **Test:** Context loads with an empty migration; `ddl-auto: validate` is asserted present by a config test.

@@ -1,0 +1,5 @@
+# No datasource configured here: integration tests supply Postgres via
+# Testcontainers' @ServiceConnection, which injects connection properties
+# dynamically and overrides anything static. This profile exists so a
+# future test-only setting has an explicit home rather than leaking into
+# application.yml or application-dev.yml.

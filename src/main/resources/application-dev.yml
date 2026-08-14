@@ -1,0 +1,7 @@
+# Active when running locally against `docker compose up -d db`.
+# Defaults mirror .env.example so a clean clone works with no extra setup.
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:coachplanner}
+    username: ${POSTGRES_USER:coachplanner}
+    password: ${POSTGRES_PASSWORD:changeme}

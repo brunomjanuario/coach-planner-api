@@ -1,0 +1,8 @@
+-- Placeholder migration (tasks.md T3). Proves the Flyway pipeline works
+-- end-to-end — connects, applies, records history, is a no-op on rerun —
+-- before any schema exists. T6 replaces this file's content wholesale
+-- with the complete schema from design.md. Since no environment has real
+-- data on top of this placeholder yet, that's a same-filename content
+-- swap, not an edit of an already-relied-on migration — just wipe the
+-- local dev volume (`docker compose down -v`) once when T6 lands so
+-- Flyway reapplies cleanly rather than hitting a checksum mismatch.
