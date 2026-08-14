@@ -10,7 +10,7 @@ the full specification, schema and task breakdown before writing any code.
 
 ## Stack
 
-- Kotlin 2.4 · Spring Boot 4.1 (Spring Data JPA, Spring Security, Validation, Actuator)
+- Kotlin 2.3.21 · Spring Boot 4.1.0 (Spring Data JPA, Spring Security, Validation, Actuator)
 - PostgreSQL 18, migrated with Flyway
 - Gradle (Kotlin DSL), Java 21 toolchain
 - Docker Compose for local Postgres
