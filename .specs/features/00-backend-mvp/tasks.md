@@ -22,7 +22,7 @@ never closes a task.
 > plan's biggest unverified assumption. It is proven here, before any domain
 > code depends on it.
 
-### T1 — Gradle skeleton + Testcontainers spike
+### T1 — Gradle skeleton + Testcontainers spike ✅ done
 - **Files:** `build.gradle.kts`, `settings.gradle.kts`, `gradle/libs.versions.toml`, `src/main/kotlin/com/coachplanner/api/CoachPlannerApplication.kt`, `src/test/kotlin/.../SmokeIT.kt`
 - **Do:** Kotlin 2.4 / Boot 4.1 / Java 21 toolchain. Starters: `webmvc` (**not** `web`), `data-jpa`, `validation`, `security`, `actuator`. Test: `spring-boot-starter-test`, `spring-boot-testcontainers:4.1.0`, Testcontainers `postgresql`.
 - **Test:** `SmokeIT` boots the context against a `@ServiceConnection` `PostgreSQLContainer("postgres:18-alpine")` and asserts a live JDBC connection.
