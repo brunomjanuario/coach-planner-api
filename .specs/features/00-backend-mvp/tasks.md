@@ -43,7 +43,7 @@ never closes a task.
 - **Done when:** Migration runs on a fresh container and is a no-op on a second boot. `AC INFRA-02, INFRA-03`
 - **Depends on:** T1, T2
 
-### T4 — Jackson 3 configuration + DTO round-trip
+### T4 — Jackson 3 configuration + DTO round-trip ✅ done
 - **Files:** `config/JacksonConfig.kt`, `src/test/kotlin/.../JsonMappingTest.kt`
 - **Do:** Kotlin module registered, `Instant` as ISO-8601 UTC, unknown properties **ignored**, nulls **retained** (`usScore: null` must serialize — omitting it breaks the frontend's `hasResult`).
 - **Test:** Round-trip a DTO with a null field, a nullable `Instant`, and an unknown incoming property. Assert the null survives serialization and the unknown field is ignored, not rejected.
