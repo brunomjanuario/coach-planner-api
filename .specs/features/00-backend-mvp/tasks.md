@@ -128,7 +128,7 @@ never closes a task.
 
 ## Phase 3 — Auth & ownership (8 tasks) · `AUTH-01…07`, `OWN-01`
 
-### T14 — Registration
+### T14 — Registration ✅ done
 - **Files:** `auth/AuthService.kt`, `auth/AuthController.kt`, `auth/dto/*`, `config/SecurityConfig.kt` (password encoder)
 - **Do:** `POST /auth/register`. bcrypt cost 12. Email uniqueness from the `citext` index, mapped to `409 email-already-registered`.
 - **Test:** Success returns `201` + user + tokens; duplicate email (including differing case) → `409`; blank name, malformed email, 7-char password → `400` with field keys and **no user row created**.

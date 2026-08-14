@@ -3,3 +3,13 @@
 # dynamically and overrides anything static. This profile exists so a
 # future test-only setting has an explicit home rather than leaking into
 # application.yml or application-dev.yml.
+
+app:
+  jwt:
+    # Fixed and obviously fake — never used outside this profile. T15's "no
+    # default in any non-dev profile" AC is about deployment safety (a
+    # real/prod-shaped environment must fail fast, never silently default);
+    # test is a CI/local-only profile the same way dev is. Must be >= 32
+    # bytes for HS256 (JWA minimum key length).
+    secret: "test-only-jwt-secret-do-not-use-in-any-real-environment-32bytes+"
+

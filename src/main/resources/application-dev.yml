@@ -5,3 +5,9 @@ spring:
     url: jdbc:postgresql://localhost:${POSTGRES_PORT:5432}/${POSTGRES_DB:coachplanner}
     username: ${POSTGRES_USER:coachplanner}
     password: ${POSTGRES_PASSWORD:changeme}
+
+app:
+  jwt:
+    # Local-dev-only fallback so `bootRun` works with no extra setup. Never
+    # used outside this profile — base application.yml has no default.
+    secret: ${JWT_SECRET:dev-only-insecure-jwt-secret-please-override-me-32bytes+}
