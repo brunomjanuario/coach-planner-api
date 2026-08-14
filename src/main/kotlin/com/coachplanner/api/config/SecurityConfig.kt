@@ -47,7 +47,10 @@ class SecurityConfig {
     fun filterChain(http: HttpSecurity, jwtDecoder: JwtDecoder): SecurityFilterChain {
         http
             .authorizeHttpRequests {
-                it.requestMatchers("/actuator/health", "/actuator/info", "/api/v1/auth/register", "/api/v1/auth/login").permitAll()
+                it.requestMatchers(
+                    "/actuator/health", "/actuator/info",
+                    "/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh",
+                ).permitAll()
                     .anyRequest().authenticated()
             }
             .oauth2ResourceServer { it.jwt { jwt -> jwt.decoder(jwtDecoder) } }

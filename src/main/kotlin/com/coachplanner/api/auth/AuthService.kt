@@ -68,6 +68,15 @@ class AuthService(
 
     private val dummyHash: String by lazy { passwordEncoder.encode("dummy-password-for-timing-parity")!! }
 
+    /** Rotation is RefreshTokenService's job; this only assembles the new pair once rotation succeeds. */
+    @Transactional
+    fun refresh(rawRefreshToken: String): AuthResponse {
+        val userId = refreshTokenService.rotate(rawRefreshToken)
+        val user = userRepository.findById(userId)
+            .orElseThrow { UnauthorizedException(INVALID_CREDENTIALS_MESSAGE, type = INVALID_CREDENTIALS) }
+        return issueTokens(user)
+    }
+
     private fun issueTokens(user: User): AuthResponse =
         AuthResponse(
             user = UserDto.from(user),

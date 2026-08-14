@@ -2,6 +2,7 @@ package com.coachplanner.api.auth
 
 import com.coachplanner.api.auth.dto.AuthResponse
 import com.coachplanner.api.auth.dto.LoginRequest
+import com.coachplanner.api.auth.dto.RefreshRequest
 import com.coachplanner.api.auth.dto.RegisterRequest
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -24,4 +25,8 @@ class AuthController(private val authService: AuthService) {
     @PostMapping("/login")
     fun login(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> =
         ResponseEntity.ok(authService.login(request))
+
+    @PostMapping("/refresh")
+    fun refresh(@Valid @RequestBody request: RefreshRequest): ResponseEntity<AuthResponse> =
+        ResponseEntity.ok(authService.refresh(request.refreshToken))
 }

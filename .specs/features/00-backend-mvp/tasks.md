@@ -149,7 +149,7 @@ never closes a task.
 - **Done when:** Green. `AC AUTH-04, AUTH-05`
 - **Depends on:** T15
 
-### T17 — Refresh rotation & reuse detection
+### T17 — Refresh rotation & reuse detection ✅ done
 - **Files:** `auth/RefreshTokenService.kt`, `auth/AuthController.kt`
 - **Do:** `POST /auth/refresh` issues a new pair and revokes the presented token. Replaying an already-rotated token revokes **every** token for that user.
 - **Test:** Rotation works; the old token then fails; replay of a rotated token invalidates a third, still-valid token belonging to the same user. Only the SHA-256 hash is ever stored — asserted by querying the column.
