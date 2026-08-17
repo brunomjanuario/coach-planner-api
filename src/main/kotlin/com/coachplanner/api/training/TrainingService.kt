@@ -15,6 +15,7 @@ import java.util.UUID
 class TrainingService(
     private val trainingRepository: TrainingRepository,
     private val teamRepository: TeamRepository,
+    private val diagramValidator: DiagramValidator,
 ) {
 
     /**
@@ -89,7 +90,7 @@ class TrainingService(
                     numberOfPlayers = request.numberOfPlayers,
                     durationMinutes = request.duration,
                     repetitions = request.repetitions,
-                    diagram = request.diagram,
+                    diagram = diagramValidator.validate(request.diagram),
                 ),
             )
         }
