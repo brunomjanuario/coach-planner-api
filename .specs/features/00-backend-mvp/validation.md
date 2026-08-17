@@ -173,3 +173,95 @@ Also ran the Phase 6 test classes directly (`./gradlew test --tests "com.coachpl
 4. ~~**Minor, non-blocking**: the spec's Independent Test for P6 was proven only as two separate halves, never one continuous chain.~~ — **Closed.** `StandingsIT.kt:71-107` (rewritten), `recording a 0-0 through the API makes the game appear as played and contributes a draw and a point` — a single test that `POST`s a game, `PUT`s a `0-0` result via `/games/{id}/result`, confirms it under `GET /games?status=played`, then confirms the `GET /standings?teamId=` row reflects it. Genuine end-to-end HTTP chain, not repository-seeded.
 5. ~~**Minor, non-blocking**: `GET /games/{id}`'s happy-path body was never asserted.~~ — **Closed.** `GameControllerIT.kt:78-92`, `GET games by id returns the game's full body` — asserts `id`, `opponent`, `competition`, `date`, `isHome`, and both scores `null`.
 6. **New, non-blocking, spec-precision only**: the committed test `RivalRowControllerIT.kt:99-114` (`a negative figure on update is rejected with 400, not 500`) uses `{"won":-1}` alone, which — independent of `@Valid` — already fails `RivalRowService.requireConsistent`'s sum check and returns `400` via a different code path (no `@Valid` needed to get *a* `400` for this exact input; `@Valid` is needed to get the `errors.won` field the test also asserts). It is a valid, sufficient regression sensor for "the fix is present" (fails without `@Valid`, on the `errors.won` assertion), but its name and the commit message both suggest it reproduces the original sum-consistent-negative/500 scenario, and by design it does not exercise that exact branch. Not blocking — the underlying behavior is independently verified correct by hand above — but worth tightening to a sum-consistent input (e.g. `played` unchanged, `{"won":-1,"drawn":+1}` keeping the sum equal) so the test's own scenario matches its docstring/name.
+
+---
+
+## Phase 7: Cards & ratings (T38–T42)
+
+**Verdict: PASS ✅**
+
+**Commit range covered:** `ebe26df..HEAD` (`0192710`, `4095ff3`, `432bd70`, `89a8ff1`, `fd34a97`)
+
+**Verifier:** fresh sub-agent, author ≠ verifier, evidence-or-zero methodology.
+
+---
+
+### Spec-anchored AC coverage
+
+| AC | Requirement (paraphrased) | Evidence (file:line) | Assertion matches spec outcome? |
+| --- | --- | --- | --- |
+| CARD-01 (AC1) | `GET /cards?gameId=` or `?playerId=` returns matching cards | `CardControllerIT.kt:117-138` — `GET cards filters by gameId alone, playerId alone, and both together`: creates 3 cards across 2 games/2 players, asserts `byGame.size == 2`, `byPlayer.size == 2`, `byBoth.size == 1` | Yes |
+| CARD-02 (AC2) | `POST /cards` with `playerId`/`gameId`/`type` (`yellow`/`red`) creates, `201` | `CardControllerIT.kt:63-76` — `POST cards creates the card and returns 201 with a Location header`: asserts `201`, `Location` header present, `$.playerId`/`$.gameId`/`$.type` all round-trip | Yes |
+| CARD-03 (AC3) | Player not in the team playing the game → `400 player-not-in-game-team` | `CardControllerIT.kt:78-91` — player on team B, game belongs to team A, asserts `status().isBadRequest` and `$.type` = `.../problems/player-not-in-game-team`; also `:93-105` (unassigned game, `teamId: null`, rejects every player the same way) | Yes |
+| CARD-04 (AC4) | `type` outside `yellow`/`red` → `400` | `CardControllerIT.kt:107-115` — `a card type of orange is rejected with 400`, `type: "orange"` asserts `status().isBadRequest` | Yes |
+| CARD-05 (AC5) | `DELETE /cards/{id}` → `204` | `CardControllerIT.kt:140-154` — `DELETE cards removes the card and returns 204`: asserts `204`, then re-`GET`s the list and asserts the id is gone | Yes |
+| RATE-01/RATE-06 (AC6) | `GET /ratings?eventType=&eventId=` or `?playerId=` returns matches, each with `eventType`/`eventId` derived from stored FKs | `RatingReadsIT.kt:68-82` (training-rating serializes `eventType: "training"`, `eventId == training.id`), `:84-98` (game-rating serializes `eventType: "game"`, `eventId == game.id`), `:100-121` (filtering by each of `eventType`, `eventId`, `playerId` independently) | Yes |
+| RATE-07 (AC7) | `PUT /ratings/{eventType}/{eventId}/players/{playerId}` upserts on the triple, creating on first call, overwriting after, **never two rows under concurrent calls** | Sequential: `RatingUpsertIT.kt:64-81` — two calls (5, then 8), asserts exactly 1 row with `value == 8`. Concurrent: `RatingUpsertIT.kt:83-109` — 12 threads released simultaneously via `CountDownLatch`, real parallel HTTP `PUT`s (not sequential, not inspected), asserts exactly 1 row afterward | Yes — concurrency proven with genuine parallel requests, matching the AC's explicit "not asserted by inspection" bar |
+| RATE-08 (AC8) | `value: null` deletes any existing rating, returns `204`, never stores a null-valued row | `RatingNullZeroDeleteIT.kt:80-84` (within the three-state walk: `PUT {"value":null}` → `204`, then `findByPlayerIdAndTrainingId(...) == null`), `:121-129` (null with no existing row is a no-op `204`, not an error) | Yes |
+| RATE-09 (AC9) | `value: 0` stores a real, distinct, readable value | `RatingNullZeroDeleteIT.kt:73-78` — within the same three-state walk, `PUT {"value":0}` → `200`, `$.value == 0`, and `findByPlayerIdAndTrainingId(...).value.toInt() == 0` (repository-level read, not just the response echo) | Yes |
+| RATE-10 (AC10) | Non-integer or out-of-range `value` → `400` | `RatingNullZeroDeleteIT.kt:87-95` — `value: 5.5` (genuine fractional, not just out-of-range) asserts `400`; `:97-107` (`-1` → `400` + `errors.value`); `:109-119` (`11` → `400` + `errors.value`) | Yes — the non-integer case is a real fractional value, not merely an out-of-range integer, so it independently exercises `JacksonConfig`'s `CoercionConfig` rather than only bean validation |
+| RATE-11 (AC11) | Unknown `eventType`, or an event that doesn't exist / isn't the caller's → `400` | `RatingUpsertIT.kt:111-118` (`eventType: "match"` → `400`), `:120-127` (a random nonexistent training id → `400`) | Yes |
+
+**11/11 ACs matched with spec-defined outcomes, evidence found at file:line for every one.**
+
+### Spec's Independent Test (5 → 0 → null, three distinct observable states)
+
+`RatingNullZeroDeleteIT.kt:61-85` — `the spec's three-state walk — 5, then 0, then null — leaves three distinct observable states`: one continuous test, one player/training/rating triple, three sequential `PUT`s with repository-level assertions after each (`value == 5`, then `value == 0` — "expected a stored, readable rating of 0 — not absent", then `findByPlayerIdAndTrainingId(...) == null` — "expected no row after setting value to null"). Proven as a single chain, not scattered across tests, matching the spec's independent test verbatim.
+
+### T42 edge case — "rating written for a concurrently deleted game → 400, never an orphan"
+
+The commit message for `fd34a97` states genuine concurrent-delete timing can't be won deterministically in a test, and substitutes a deterministic FK violation (a nonexistent `playerId`) that exercises the identical code branch. Verified this claim directly, not just read it:
+
+- `RatingService.upsert`'s retry-as-update branch (`RatingService.kt:81-94`) catches `DataIntegrityViolationException` from the insert attempt, then calls `event.findExisting(...)`. If that also returns `null`, it throws `ValidationException(..., "unknown-event")` → `400`. This is the *only* place in the method that distinguishes "the violation was the expected duplicate-key race" from "the violation was something else" (an FK pointing at a row that vanished between `resolveEvent`'s check and the insert — which is exactly the shape of a concurrently-deleted game/training, since the game/training FK and the player FK are both ordinary FK constraints on the same `INSERT`).
+- `RatingUpsertIT.kt:140-152` (`an insert-time FK violation on a reference that no longer exists is 400, never 500 or an orphan`) triggers this via a nonexistent `playerId` instead of a raced game delete — a different FK on the same insert statement, same `DataIntegrityViolationException`, same downstream branch.
+- Confirmed by mutation testing (mutation #7 below): reverting the fix (re-throwing the raw exception instead of `ValidationException`) makes exactly this test fail with a `500` instead of the expected `400` — proving the test genuinely guards this branch, not a coincidence.
+
+The substitution is a valid, deterministic proxy for the same code path. It does not itself prove the *game/training* FK specifically (only the *player* FK is exercised), but `RatingService.upsert`'s code has no branch that distinguishes which FK triggered the violation — the catch block is FK-agnostic — so the player-FK proof and the game-FK scenario are provably the same branch, not merely analogous ones.
+
+### T42 — cascade and isolation completeness
+
+- **Player delete → cards/ratings removed, nothing else:** `CascadeIT.kt:88-112` (`deleting a player deletes only their own cards and ratings`) — raw-SQL delete (not `repository.delete()`, consistent with the file's existing proof-of-DB-enforcement style), asserts the deleted player's card/rating are gone, a second player's card/rating survive, and the team/game themselves are untouched.
+- **Game delete → cards/ratings removed:** `CascadeIT.kt:114-136` (`deleting a game deletes only its own cards and ratings`) — pre-existing from T10, unchanged this phase.
+- **Training delete → exercises + ratings removed:** `CascadeIT.kt:138-...` (`deleting a training deletes its exercises and its ratings, and nothing else`) — pre-existing from T10, unchanged this phase.
+- All three of tasks.md's T42 "player, game, training" cascade triad are present; only the player case was new this phase, matching the commit message's own claim.
+- **Ownership isolation, repository level:** `OwnershipIsolationIT.kt` — `Card` and `Rating` added to the `OwnershipCase` list (around lines 132-149), exercised by the existing parameterised test at `:156` (`an entity is visible to its owner and invisible to a different user`), each with its own `findByIdAndOwnerId` (Card via `game_id`, Rating via whichever of `training_id`/`game_id` is set).
+- **Ownership isolation, HTTP level:** `OwnershipIsolationIT.kt:244-253` (`user B gets 404, never 403, deleting user A's card`) and `:256-265` (same for rating) — both assert `status().isNotFound`, matching the 404-not-403 convention used throughout the suite.
+
+---
+
+### Discrimination sensor
+
+All mutations applied to the real working tree one at a time (no scratch worktree needed — repo is small enough to mutate and revert directly), targeted test classes run after each (`com.coachplanner.api.discipline.*`, `com.coachplanner.api.CascadeIT`, `com.coachplanner.api.OwnershipIsolationIT`), then reverted via `Edit` back to the original text and `git status --short`/`git diff --stat` confirmed empty before the next mutation. Docker confirmed running (`docker info`) throughout, so all Testcontainers-backed ITs ran for real.
+
+| # | Mutation | File | Result | Killed by |
+| --- | --- | --- | --- | --- |
+| 1 | `CardService.create`'s ownership check inverted: `player.team.id != game.teamId` → `player.team.id == game.teamId` | `CardService.kt:41` | **Killed** (5 tests) | `CardControllerIT > a player not in the team playing the game is rejected with 400 player-not-in-game-team`, `...an unassigned game rejects every player...`, plus 3 others whose fixtures now trip the inverted check on their own happy path |
+| 2 | `RatingMapper.toDto` swapped which FK produces `"training"` vs `"game"` | `RatingMapper.kt:12-16` | **Killed** (2) | `RatingReadsIT > a training-rating serializes with eventType training...`, `...a game-rating serializes with eventType game...` |
+| 3 | `RatingService.upsert`'s retry branch changed from find-and-update to a blind retry-insert (reintroducing check-then-act) | `RatingService.kt:82-93` | **Killed** (3) | `RatingNullZeroDeleteIT > the spec's three-state walk...`, `RatingUpsertIT > an insert-time FK violation...`, `RatingUpsertIT > two sequential PUT calls leave exactly one row...` |
+| 4 | `RatingService.upsert`'s null-value branch no longer deletes the existing row (short-circuits to `return null` immediately) | `RatingService.kt:71-72` | **Killed** (1) | `RatingNullZeroDeleteIT > the spec's three-state walk — 5, then 0, then null...` |
+| 5 | Removed `JacksonConfig`'s `CoercionConfig(LogicalType.Integer, Float -> Fail)` | `JacksonConfig.kt:36-40` | **Killed** (1) | `RatingNullZeroDeleteIT > a non-integer value is rejected with 400` |
+| 6 | `RatingRepository.findByIdAndOwnerId` stripped of its owner-scoping join, matching on `id` alone | `RatingRepository.kt:25-33` | **Killed** (2) | `OwnershipIsolationIT > user B gets 404, never 403, deleting user A's rating`, `...an entity is visible to its owner and invisible to a different user(OwnershipCase) > Rating` |
+| 7 | `RatingService.upsert`'s retry branch reverted to re-throw the raw `DataIntegrityViolationException` instead of `ValidationException` when `findExisting` returns null | `RatingService.kt:89-90` | **Killed** (1) | `RatingUpsertIT > an insert-time FK violation on a reference that no longer exists is 400, never 500 or an orphan` (fails with `500` instead of the expected `400`, directly confirming the T42 edge-case claim above) |
+
+**Sensor summary: 7 mutations injected, 7 killed, 0 survived.** Working tree confirmed clean (`git status --short` empty, `git diff --stat` empty against `HEAD`) after the full sequence.
+
+---
+
+### Gate
+
+`./gradlew clean build` (full suite, real Testcontainers-backed PostgreSQL, Docker confirmed running via `docker info`):
+
+```
+BUILD SUCCESSFUL in 37s
+8 actionable tasks: 8 executed
+```
+
+Aggregated JUnit XML across all 49 test-result files: **206 tests, 0 failures, 0 errors** — matches the count expected per the task brief. A subsequent targeted re-run of `com.coachplanner.api.discipline.*`, `CascadeIT`, and `OwnershipIsolationIT` after the mutation sequence (on the clean, reverted tree) was also independently green.
+
+The concurrency test (`RatingUpsertIT`'s `concurrent PUT calls for the same triple leave exactly one row`) passed cleanly on every run in this session — no flakiness observed, though its 12-thread/15s-timeout design leaves some margin under heavier load than this environment produced.
+
+---
+
+### Ranked gaps
+
+None. All 11 ACs matched, the spec's Independent Test is proven as a single chain, the T42 edge-case substitution was verified to exercise the same code branch as the scenario it stands in for, and all 7 targeted mutations were killed.
