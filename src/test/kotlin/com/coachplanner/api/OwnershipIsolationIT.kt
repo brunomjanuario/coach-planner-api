@@ -175,4 +175,22 @@ class OwnershipIsolationIT @Autowired constructor(
         mockMvc.perform(delete("/api/v1/teams/${team.id}/players/${player.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
             .andExpect(status().isNotFound)
     }
+
+    /** tasks.md T31 / AC TRAIN-11 — the isolation harness extended to trainings, now that TrainingController exists. */
+    @Test
+    fun `user B gets 404, never 403, reading, patching and deleting user A's training`() {
+        val training = trainingRepository.saveAndFlush(Training(ownerId = ownerA.id, day = Instant.now(), durationMinutes = 60))
+        val tokenB = tokenFor(ownerB)
+
+        mockMvc.perform(get("/api/v1/trainings/${training.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+        mockMvc.perform(
+            patch("/api/v1/trainings/${training.id}")
+                .header(HttpHeaders.AUTHORIZATION, tokenB)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"duration":30}"""),
+        ).andExpect(status().isNotFound)
+        mockMvc.perform(delete("/api/v1/trainings/${training.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+    }
 }

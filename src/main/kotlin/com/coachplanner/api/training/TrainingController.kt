@@ -6,6 +6,7 @@ import com.coachplanner.api.training.dto.TrainingDto
 import com.coachplanner.api.training.dto.UpdateTrainingRequest
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -43,4 +44,10 @@ class TrainingController(private val trainingService: TrainingService) {
         @CurrentUser ownerId: UUID,
         @Valid @RequestBody request: UpdateTrainingRequest,
     ): TrainingDto = trainingService.update(id, ownerId, request)
+
+    @DeleteMapping("/{id}")
+    fun delete(@PathVariable id: UUID, @CurrentUser ownerId: UUID): ResponseEntity<Void> {
+        trainingService.delete(id, ownerId)
+        return ResponseEntity.noContent().build()
+    }
 }

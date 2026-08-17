@@ -97,6 +97,17 @@ class TrainingService(
     }
 
     /**
+     * No manual cascade code: exercises (orphanRemoval on the JPA side) and
+     * every rating for this training (the schema's `ON DELETE CASCADE` on
+     * `ratings.training_id`, AD-106) go with it purely from the delete
+     * itself — same pattern as Team delete (T23).
+     */
+    @Transactional
+    fun delete(id: UUID, ownerId: UUID) {
+        trainingRepository.delete(findOwned(id, ownerId))
+    }
+
+    /**
      * A `teamId` in the body naming a team the caller doesn't own is a 400
      * `unknown-team`, not a 404 (AC TRAIN-12): the endpoint's own subject —
      * the training — is fine; it's the body's reference that is unknown.
