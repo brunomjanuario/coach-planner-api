@@ -12,6 +12,22 @@ import java.util.UUID
 @Service
 class GameService(private val gameRepository: GameRepository) {
 
+    /** `status` only recognises "scheduled"/"played" (AC GAME-02); any other value applies no status filter. */
+    @Transactional(readOnly = true)
+    fun getAll(ownerId: UUID, teamId: UUID?, status: String?, assigned: Boolean?): List<GameDto> =
+        gameRepository.findAllByOwnerId(ownerId)
+            .filter { teamId == null || it.teamId == teamId }
+            .filter { assigned == null || (assigned == (it.teamId != null)) }
+            .filter {
+                when (status) {
+                    "played" -> hasResult(it)
+                    "scheduled" -> !hasResult(it)
+                    else -> true
+                }
+            }
+            .sortedByDescending { it.date }
+            .map { GameDto.from(it) }
+
     @Transactional(readOnly = true)
     fun getById(id: UUID, ownerId: UUID): GameDto = GameDto.from(findOwned(id, ownerId))
 

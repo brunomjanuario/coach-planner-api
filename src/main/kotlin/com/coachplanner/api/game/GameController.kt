@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 import java.util.UUID
@@ -19,6 +20,14 @@ import java.util.UUID
 @RestController
 @RequestMapping("/api/v1/games")
 class GameController(private val gameService: GameService) {
+
+    @GetMapping
+    fun getAll(
+        @CurrentUser ownerId: UUID,
+        @RequestParam(required = false) teamId: UUID?,
+        @RequestParam(required = false) status: String?,
+        @RequestParam(required = false) assigned: Boolean?,
+    ): List<GameDto> = gameService.getAll(ownerId, teamId, status, assigned)
 
     @GetMapping("/{id}")
     fun getById(@PathVariable id: UUID, @CurrentUser ownerId: UUID): GameDto = gameService.getById(id, ownerId)
