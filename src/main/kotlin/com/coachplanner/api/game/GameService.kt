@@ -70,6 +70,16 @@ class GameService(private val gameRepository: GameRepository) {
         return GameDto.from(gameRepository.saveAndFlush(game))
     }
 
+    /**
+     * No manual cascade code: `cards.game_id` and `ratings.game_id` are both
+     * `ON DELETE CASCADE` in the schema (design.md), same pattern as Team
+     * (T23) and Training (T31) delete.
+     */
+    @Transactional
+    fun delete(id: UUID, ownerId: UUID) {
+        gameRepository.delete(findOwned(id, ownerId))
+    }
+
     /** Bounds are enforced by @Valid on the request (AC GAME-05); the DB's own CHECK is the floor underneath. */
     @Transactional
     fun recordResult(id: UUID, ownerId: UUID, request: RecordResultRequest): GameDto {

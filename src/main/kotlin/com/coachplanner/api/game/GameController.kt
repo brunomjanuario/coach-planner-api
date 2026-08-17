@@ -48,6 +48,12 @@ class GameController(private val gameService: GameService) {
         @RequestBody request: UpdateGameRequest,
     ): GameDto = gameService.update(id, ownerId, request)
 
+    @DeleteMapping("/{id}")
+    fun delete(@PathVariable id: UUID, @CurrentUser ownerId: UUID): ResponseEntity<Void> {
+        gameService.delete(id, ownerId)
+        return ResponseEntity.noContent().build()
+    }
+
     @PutMapping("/{id}/result")
     fun recordResult(
         @PathVariable id: UUID,
