@@ -1,8 +1,10 @@
 package com.coachplanner.api.standings
 
 import com.coachplanner.api.common.CurrentUser
+import com.coachplanner.api.common.ValidationException
 import com.coachplanner.api.standings.dto.CreateRivalRowRequest
 import com.coachplanner.api.standings.dto.RivalRowDto
+import com.coachplanner.api.standings.dto.StandingsRowDto
 import com.coachplanner.api.standings.dto.UpdateRivalRowRequest
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
@@ -13,13 +15,23 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import java.net.URI
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/v1/standings")
-class StandingsController(private val rivalRowService: RivalRowService) {
+class StandingsController(
+    private val rivalRowService: RivalRowService,
+    private val standingsService: StandingsService,
+) {
+
+    @GetMapping
+    fun getStandings(@CurrentUser ownerId: UUID, @RequestParam teamId: UUID?): List<StandingsRowDto> {
+        if (teamId == null) throw ValidationException("teamId is required.", "missing-parameter")
+        return standingsService.getStandings(ownerId, teamId)
+    }
 
     @GetMapping("/rivals")
     fun getAllRivals(@CurrentUser ownerId: UUID): List<RivalRowDto> = rivalRowService.getAll(ownerId)
