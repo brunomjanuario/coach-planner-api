@@ -17,6 +17,32 @@ class TrainingService(
     private val teamRepository: TeamRepository,
 ) {
 
+    /**
+     * Numbers are computed over the owner's *whole* history and only then
+     * filtered (AC TRAIN-03) — computing after filtering would renumber a
+     * team's trainings from 1 every time `?teamId=` narrows the result,
+     * which is the exact regression tasks.md flags as this phase's
+     * highest-risk mistake.
+     */
+    @Transactional(readOnly = true)
+    fun getAll(ownerId: UUID, teamId: UUID?, assigned: Boolean?): List<TrainingDto> {
+        val all = trainingRepository.findAllByOwnerId(ownerId)
+        val numbers = TrainingNumbering.numbersById(all)
+
+        return all
+            .filter { teamId == null || it.teamId == teamId }
+            .filter { assigned == null || (assigned == (it.teamId != null)) }
+            .sortedWith(compareBy<Training> { it.day }.thenBy { it.id.toString() })
+            .map { TrainingDto.from(it, numbers[it.id]) }
+    }
+
+    @Transactional(readOnly = true)
+    fun getById(id: UUID, ownerId: UUID): TrainingDto {
+        val training = findOwned(id, ownerId)
+        val numbers = TrainingNumbering.numbersById(trainingRepository.findAllByOwnerId(ownerId))
+        return TrainingDto.from(training, numbers[training.id])
+    }
+
     @Transactional
     fun create(ownerId: UUID, request: CreateTrainingRequest): TrainingDto {
         val training = Training(
