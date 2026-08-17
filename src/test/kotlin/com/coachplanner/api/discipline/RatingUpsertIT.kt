@@ -125,4 +125,29 @@ class RatingUpsertIT @Autowired constructor(
 
         putRating(token, "training", newId(), player.id, 5).andExpect(status().isBadRequest)
     }
+
+    /**
+     * tasks.md T42's edge case: "a rating written for a concurrently deleted
+     * game → 400, never an orphan". Genuine thread-timed concurrency around
+     * `resolveEvent`'s check and the insert can't be won deterministically in
+     * a test, but the code has no special case for *why* the insert's FK
+     * violated — a nonexistent playerId exercises the exact same
+     * safety-net branch in RatingService.upsert (an insert-time constraint
+     * violation that isn't the expected duplicate-key race) deterministically,
+     * proving the mechanism that protects the concurrently-deleted-event case
+     * without needing to win a race.
+     */
+    @Test
+    fun `an insert-time FK violation on a reference that no longer exists is 400, never 500 or an orphan`() {
+        val (token, ownerId) = registerAndGetToken()
+        val training = trainingRepository.saveAndFlush(Training(ownerId = ownerId, day = Instant.now(), durationMinutes = 60))
+        val nonexistentPlayerId = newId()
+
+        putRating(token, "training", training.id, nonexistentPlayerId, 5)
+            .andExpect(status().isBadRequest)
+
+        assert(ratingRepository.findAll().none { it.playerId == nonexistentPlayerId }) {
+            "expected no orphaned rating row for a player that doesn't exist"
+        }
+    }
 }

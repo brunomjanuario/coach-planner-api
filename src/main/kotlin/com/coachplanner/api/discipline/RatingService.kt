@@ -80,7 +80,14 @@ class RatingService(
             }
         } catch (ex: DataIntegrityViolationException) {
             newTransaction.execute<RatingDto> {
-                val existing = event.findExisting(ratingRepository, playerId) ?: throw ex
+                // A row now existing for this triple confirms the violation was the expected
+                // duplicate-key race (AC RATE-07) — retry as an update. If nothing is found,
+                // the violation was something else entirely: most concretely, the event (or
+                // player) referenced by an FK was deleted between resolveEvent's check and this
+                // insert. That must never surface as a bare 500 or leave an orphaned attempt —
+                // it is the same reference-invalid outcome AC RATE-11 already defines as 400.
+                val existing = event.findExisting(ratingRepository, playerId)
+                    ?: throw ValidationException("Unknown event: $eventType/$eventId", "unknown-event")
                 existing.value = value.toShort()
                 RatingMapper.toDto(ratingRepository.saveAndFlush(existing))
             }

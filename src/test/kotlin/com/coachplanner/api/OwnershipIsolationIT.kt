@@ -4,6 +4,11 @@ import com.coachplanner.api.auth.JwtService
 import com.coachplanner.api.auth.User
 import com.coachplanner.api.auth.UserRepository
 import com.coachplanner.api.common.newId
+import com.coachplanner.api.discipline.Card
+import com.coachplanner.api.discipline.CardRepository
+import com.coachplanner.api.discipline.CardType
+import com.coachplanner.api.discipline.Rating
+import com.coachplanner.api.discipline.RatingRepository
 import com.coachplanner.api.game.Game
 import com.coachplanner.api.game.GameRepository
 import com.coachplanner.api.reference.Competition
@@ -72,6 +77,8 @@ class OwnershipIsolationIT @Autowired constructor(
     private val rivalRowRepository: RivalRowRepository,
     private val competitionRepository: CompetitionRepository,
     private val opponentRepository: OpponentRepository,
+    private val cardRepository: CardRepository,
+    private val ratingRepository: RatingRepository,
 ) {
 
     private lateinit var ownerA: User
@@ -121,6 +128,26 @@ class OwnershipIsolationIT @Autowired constructor(
             "Opponent",
             create = { owner -> opponentRepository.saveAndFlush(Opponent(ownerId = owner, name = "Benfica")).id },
             find = { id, owner -> opponentRepository.findByIdAndOwnerId(id, owner) },
+        ),
+        OwnershipCase(
+            "Card",
+            create = { owner ->
+                val team = teamRepository.saveAndFlush(Team(ownerId = owner, name = "Sub-11"))
+                val player = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+                val game = gameRepository.saveAndFlush(Game(ownerId = owner, opponent = "Benfica", date = Instant.now(), isHome = true))
+                cardRepository.saveAndFlush(Card(playerId = player.id, gameId = game.id, type = CardType.yellow)).id
+            },
+            find = { id, owner -> cardRepository.findByIdAndOwnerId(id, owner) },
+        ),
+        OwnershipCase(
+            "Rating",
+            create = { owner ->
+                val team = teamRepository.saveAndFlush(Team(ownerId = owner, name = "Sub-11"))
+                val player = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+                val training = trainingRepository.saveAndFlush(Training(ownerId = owner, day = Instant.now(), durationMinutes = 60))
+                ratingRepository.saveAndFlush(Rating(playerId = player.id, trainingId = training.id, value = 7)).id
+            },
+            find = { id, owner -> ratingRepository.findByIdAndOwnerId(id, owner) },
         ),
     )
 
@@ -209,6 +236,31 @@ class OwnershipIsolationIT @Autowired constructor(
                 .content("""{"opponent":"Hijacked"}"""),
         ).andExpect(status().isNotFound)
         mockMvc.perform(delete("/api/v1/games/${game.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+    }
+
+    /** tasks.md T42 — the isolation harness completes the walk over every entity type: cards and ratings. */
+    @Test
+    fun `user B gets 404, never 403, deleting user A's card`() {
+        val team = teamRepository.saveAndFlush(Team(ownerId = ownerA.id, name = "A's Team"))
+        val player = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+        val game = gameRepository.saveAndFlush(Game(ownerId = ownerA.id, teamId = team.id, opponent = "Benfica", date = Instant.now(), isHome = true))
+        val card = cardRepository.saveAndFlush(Card(playerId = player.id, gameId = game.id, type = CardType.yellow))
+        val tokenB = tokenFor(ownerB)
+
+        mockMvc.perform(delete("/api/v1/cards/${card.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
+            .andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `user B gets 404, never 403, deleting user A's rating`() {
+        val team = teamRepository.saveAndFlush(Team(ownerId = ownerA.id, name = "A's Team"))
+        val player = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+        val training = trainingRepository.saveAndFlush(Training(ownerId = ownerA.id, day = Instant.now(), durationMinutes = 60))
+        val rating = ratingRepository.saveAndFlush(Rating(playerId = player.id, trainingId = training.id, value = 7))
+        val tokenB = tokenFor(ownerB)
+
+        mockMvc.perform(delete("/api/v1/ratings/${rating.id}").header(HttpHeaders.AUTHORIZATION, tokenB))
             .andExpect(status().isNotFound)
     }
 }

@@ -83,6 +83,33 @@ class CascadeIT @Autowired constructor(
         assertNull(reloadedGame.teamId, "expected the game to survive with team_id nulled, not deleted")
     }
 
+    /** tasks.md T42 — the one entity-type cascade CascadeIT hadn't proven standalone; T10 only covered it transitively through a team delete. */
+    @Test
+    fun `deleting a player deletes only their own cards and ratings`() {
+        val owner = persistedOwner()
+        val team = teamRepository.saveAndFlush(Team(ownerId = owner.id, name = "Sub-11"))
+        val game = gameRepository.saveAndFlush(Game(ownerId = owner.id, teamId = team.id, opponent = "Benfica", date = Instant.now(), isHome = true))
+        val training = trainingRepository.saveAndFlush(Training(ownerId = owner.id, teamId = team.id, day = Instant.now(), durationMinutes = 90))
+
+        val deletedPlayer = playerRepository.saveAndFlush(Player(team = team, name = "João"))
+        val cardOnDeletedPlayer = cardRepository.saveAndFlush(Card(playerId = deletedPlayer.id, gameId = game.id, type = CardType.yellow))
+        val ratingOnDeletedPlayer = ratingRepository.saveAndFlush(Rating(playerId = deletedPlayer.id, trainingId = training.id, value = 6))
+
+        val survivingPlayer = playerRepository.saveAndFlush(Player(team = team, name = "Pedro"))
+        val cardOnSurvivingPlayer = cardRepository.saveAndFlush(Card(playerId = survivingPlayer.id, gameId = game.id, type = CardType.red))
+        val ratingOnSurvivingPlayer = ratingRepository.saveAndFlush(Rating(playerId = survivingPlayer.id, trainingId = training.id, value = 3))
+
+        jdbc.update("DELETE FROM players WHERE id = ?", deletedPlayer.id)
+        entityManager.clear()
+
+        assertTrue(cardRepository.findById(cardOnDeletedPlayer.id).isEmpty, "expected the deleted player's card to be gone")
+        assertTrue(ratingRepository.findById(ratingOnDeletedPlayer.id).isEmpty, "expected the deleted player's rating to be gone")
+        assertTrue(cardRepository.findById(cardOnSurvivingPlayer.id).isPresent, "expected the other player's card to survive")
+        assertTrue(ratingRepository.findById(ratingOnSurvivingPlayer.id).isPresent, "expected the other player's rating to survive")
+        assertTrue(teamRepository.findById(team.id).isPresent, "the team itself must not be touched by a player delete")
+        assertTrue(gameRepository.findById(game.id).isPresent, "the game itself must not be touched by a player delete")
+    }
+
     @Test
     fun `deleting a game deletes only its own cards and ratings`() {
         val owner = persistedOwner()
