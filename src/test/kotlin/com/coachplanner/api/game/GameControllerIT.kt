@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
@@ -71,6 +72,22 @@ class GameControllerIT @Autowired constructor(
         val id = jsonMapper.readTree(result.response.contentAsString).get("id").asString()
         val location = result.response.getHeader(HttpHeaders.LOCATION)!!
         assert(location.endsWith(id)) { "expected Location to reference the new game's id: $location" }
+    }
+
+    @Test
+    fun `GET games by id returns the game's full body`() {
+        val token = registerAndGetToken()
+        val id = createGame(token, """{"opponent":"Benfica","competition":"District League","date":"2030-01-01T15:00:00Z","isHome":true}""")
+
+        mockMvc.perform(get("/api/v1/games/$id").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.id").value(id))
+            .andExpect(jsonPath("$.opponent").value("Benfica"))
+            .andExpect(jsonPath("$.competition").value("District League"))
+            .andExpect(jsonPath("$.date").value("2030-01-01T15:00:00Z"))
+            .andExpect(jsonPath("$.isHome").value(true))
+            .andExpect(jsonPath("$.usScore").value(org.hamcrest.Matchers.nullValue()))
+            .andExpect(jsonPath("$.themScore").value(org.hamcrest.Matchers.nullValue()))
     }
 
     @Test

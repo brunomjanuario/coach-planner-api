@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Import
 import org.springframework.http.HttpHeaders
 import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -80,6 +81,36 @@ class RivalRowControllerIT @Autowired constructor(
         createRival(token, """{"name":"Sporting","played":1,"won":1,"drawn":0,"lost":0,"goalsFor":3,"goalsAgainst":1,"points":99}""")
             .andExpect(status().isCreated)
             .andExpect(jsonPath("$.points").doesNotExist())
+    }
+
+    @Test
+    fun `GET standings rivals returns the caller's created rows`() {
+        val token = registerAndGetToken()
+        createRival(token, """{"name":"Sporting","played":1,"won":1,"drawn":0,"lost":0,"goalsFor":2,"goalsAgainst":0}""")
+            .andExpect(status().isCreated)
+
+        mockMvc.perform(get("/api/v1/standings/rivals").header(HttpHeaders.AUTHORIZATION, bearer(token)))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.length()").value(1))
+            .andExpect(jsonPath("$[0].name").value("Sporting"))
+            .andExpect(jsonPath("$[0].played").value(1))
+    }
+
+    @Test
+    fun `a negative figure on update is rejected with 400, not 500`() {
+        val token = registerAndGetToken()
+        val response = createRival(token, """{"name":"Sporting","played":3,"won":1,"drawn":1,"lost":1,"goalsFor":5,"goalsAgainst":3}""")
+            .andExpect(status().isCreated).andReturn().response.contentAsString
+        val id = jsonMapper.readTree(response).get("id").asString()
+
+        mockMvc.perform(
+            patch("/api/v1/standings/rivals/$id")
+                .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"won":-1}"""),
+        )
+            .andExpect(status().isBadRequest)
+            .andExpect(jsonPath("$.errors.won").value("must not be negative"))
     }
 
     @Test

@@ -60,15 +60,39 @@ class StandingsIT @Autowired constructor(
             .andExpect(jsonPath("$[0].isOurs").value(true))
     }
 
+    /**
+     * spec.md's own Independent Test for P6, proven as one real chain rather
+     * than two separate halves: record a 0-0 through the actual result
+     * endpoint (not seeded via the repository), confirm it surfaces under
+     * ?status=played, then confirm it contributes a draw and a point to the
+     * standings row.
+     */
     @Test
-    fun `recording a 0-0 draw contributes a draw and one point to the team's own row`() {
+    fun `recording a 0-0 through the API makes the game appear as played and contributes a draw and a point`() {
         val (token, ownerId) = registerAndGetToken()
         val team = teamRepository.saveAndFlush(Team(ownerId = ownerId, name = "Sub-11"))
-        gameRepository.saveAndFlush(
-            Game(ownerId = ownerId, teamId = team.id, opponent = "Benfica", date = Instant.now(), isHome = true, usScore = 0, themScore = 0),
-        )
+        val bearer = "Bearer $token"
 
-        mockMvc.perform(get("/api/v1/standings?teamId=${team.id}").header(HttpHeaders.AUTHORIZATION, "Bearer $token"))
+        val createResponse = mockMvc.perform(
+            post("/api/v1/games")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"teamId":"${team.id}","opponent":"Benfica","date":"2030-01-01T15:00:00Z","isHome":true}"""),
+        ).andExpect(status().isCreated).andReturn().response.contentAsString
+        val gameId = jsonMapper.readTree(createResponse).get("id").asString()
+
+        mockMvc.perform(
+            org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/games/$gameId/result")
+                .header(HttpHeaders.AUTHORIZATION, bearer)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"usScore":0,"themScore":0}"""),
+        ).andExpect(status().isOk)
+
+        mockMvc.perform(get("/api/v1/games?status=played").header(HttpHeaders.AUTHORIZATION, bearer))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[?(@.id == '$gameId')]").exists())
+
+        mockMvc.perform(get("/api/v1/standings?teamId=${team.id}").header(HttpHeaders.AUTHORIZATION, bearer))
             .andExpect(status().isOk)
             .andExpect(jsonPath("$[0].played").value(1))
             .andExpect(jsonPath("$[0].drawn").value(1))

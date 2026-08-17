@@ -104,6 +104,21 @@ class GameReadsIT @Autowired constructor(
     }
 
     @Test
+    fun `teamId filters to only that team's games`() {
+        val token = registerAndGetToken()
+        val teamA = createTeam(token)
+        val teamB = createTeam(token)
+        val gameForA = createGame(token, teamA, "2030-01-01T15:00:00Z")
+        createGame(token, teamB, "2030-01-02T15:00:00Z")
+        createGame(token, null, "2030-01-03T15:00:00Z")
+
+        val filtered = getAll(token, "?teamId=$teamA")
+
+        assert(filtered.size == 1) { "expected 1 game for teamId=$teamA, got ${filtered.size}" }
+        assert(filtered[0]["id"].asString() == gameForA)
+    }
+
+    @Test
     fun `assigned=false returns only games whose teamId is null`() {
         val token = registerAndGetToken()
         val teamId = createTeam(token)

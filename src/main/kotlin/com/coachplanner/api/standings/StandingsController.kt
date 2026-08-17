@@ -46,7 +46,7 @@ class StandingsController(
     fun updateRival(
         @PathVariable id: UUID,
         @CurrentUser ownerId: UUID,
-        @RequestBody request: UpdateRivalRowRequest,
+        @Valid @RequestBody request: UpdateRivalRowRequest,
     ): RivalRowDto = rivalRowService.update(id, ownerId, request)
 
     @DeleteMapping("/rivals/{id}")
