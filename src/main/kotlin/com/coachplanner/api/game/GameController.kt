@@ -3,13 +3,16 @@ package com.coachplanner.api.game
 import com.coachplanner.api.common.CurrentUser
 import com.coachplanner.api.game.dto.CreateGameRequest
 import com.coachplanner.api.game.dto.GameDto
+import com.coachplanner.api.game.dto.RecordResultRequest
 import com.coachplanner.api.game.dto.UpdateGameRequest
 import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -44,4 +47,14 @@ class GameController(private val gameService: GameService) {
         @CurrentUser ownerId: UUID,
         @RequestBody request: UpdateGameRequest,
     ): GameDto = gameService.update(id, ownerId, request)
+
+    @PutMapping("/{id}/result")
+    fun recordResult(
+        @PathVariable id: UUID,
+        @CurrentUser ownerId: UUID,
+        @Valid @RequestBody request: RecordResultRequest,
+    ): GameDto = gameService.recordResult(id, ownerId, request)
+
+    @DeleteMapping("/{id}/result")
+    fun clearResult(@PathVariable id: UUID, @CurrentUser ownerId: UUID): GameDto = gameService.clearResult(id, ownerId)
 }

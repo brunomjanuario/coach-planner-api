@@ -4,6 +4,7 @@ import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.ValidationException
 import com.coachplanner.api.game.dto.CreateGameRequest
 import com.coachplanner.api.game.dto.GameDto
+import com.coachplanner.api.game.dto.RecordResultRequest
 import com.coachplanner.api.game.dto.UpdateGameRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -66,6 +67,24 @@ class GameService(private val gameRepository: GameRepository) {
         request.date?.let { game.date = it }
         request.isHome?.let { game.isHome = it }
 
+        return GameDto.from(gameRepository.saveAndFlush(game))
+    }
+
+    /** Bounds are enforced by @Valid on the request (AC GAME-05); the DB's own CHECK is the floor underneath. */
+    @Transactional
+    fun recordResult(id: UUID, ownerId: UUID, request: RecordResultRequest): GameDto {
+        val game = findOwned(id, ownerId)
+        game.usScore = request.usScore
+        game.themScore = request.themScore
+        return GameDto.from(gameRepository.saveAndFlush(game))
+    }
+
+    /** Both scores go back to null — the fixture itself is untouched (AC GAME-06). */
+    @Transactional
+    fun clearResult(id: UUID, ownerId: UUID): GameDto {
+        val game = findOwned(id, ownerId)
+        game.usScore = null
+        game.themScore = null
         return GameDto.from(gameRepository.saveAndFlush(game))
     }
 
