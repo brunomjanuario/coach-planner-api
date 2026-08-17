@@ -1,5 +1,6 @@
 package com.coachplanner.api.discipline
 
+import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.ValidationException
 import com.coachplanner.api.discipline.dto.RatingDto
 import com.coachplanner.api.game.GameRepository
@@ -50,9 +51,27 @@ class RatingService(
      * fails with a constraint violation, and it retries as an update in a
      * fresh transaction — concurrency is resolved by the index, not by
      * application-level locking.
+     *
+     * `value: null` deletes any existing row for the triple and returns
+     * `null` (AC RATE-08) — a rating is never stored with a null value, and
+     * `0` is stored as a real value, distinct from "no row" (AC RATE-09).
+     *
+     * Deliberately not `@Transactional` itself: every branch already manages
+     * its own transaction (Spring Data's individually-transactional
+     * repository calls, or the explicit REQUIRES_NEW template above). Wrapping
+     * the whole method in an outer transaction would hold a connection for
+     * its entire duration *in addition to* the REQUIRES_NEW block's own
+     * connection on every call — not just the rare retry path — starving the
+     * pool under concurrent load exactly like the race this method exists to
+     * fix.
      */
-    fun upsert(ownerId: UUID, eventType: String, eventId: UUID, playerId: UUID, value: Int): RatingDto {
+    fun upsert(ownerId: UUID, eventType: String, eventId: UUID, playerId: UUID, value: Int?): RatingDto? {
         val event = resolveEvent(ownerId, eventType, eventId)
+
+        if (value == null) {
+            event.findExisting(ratingRepository, playerId)?.let { ratingRepository.delete(it) }
+            return null
+        }
 
         return try {
             newTransaction.execute<RatingDto> {
@@ -66,6 +85,12 @@ class RatingService(
                 RatingMapper.toDto(ratingRepository.saveAndFlush(existing))
             }
         }
+    }
+
+    @Transactional
+    fun delete(id: UUID, ownerId: UUID) {
+        val rating = ratingRepository.findByIdAndOwnerId(id, ownerId) ?: throw NotFoundException("Rating not found.")
+        ratingRepository.delete(rating)
     }
 
     private fun matchesEventType(rating: Rating, eventType: String): Boolean =

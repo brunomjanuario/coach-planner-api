@@ -3,6 +3,9 @@ package com.coachplanner.api.discipline
 import com.coachplanner.api.common.CurrentUser
 import com.coachplanner.api.discipline.dto.RatingDto
 import com.coachplanner.api.discipline.dto.SetRatingRequest
+import jakarta.validation.Valid
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PutMapping
@@ -24,12 +27,22 @@ class RatingController(private val ratingService: RatingService) {
         @RequestParam(required = false) playerId: UUID?,
     ): List<RatingDto> = ratingService.getAll(ownerId, eventType, eventId, playerId)
 
+    /** `value: null` deletes and returns 204 (AC RATE-08); a stored value returns 200 with the rating. */
     @PutMapping("/{eventType}/{eventId}/players/{playerId}")
     fun setRating(
         @PathVariable eventType: String,
         @PathVariable eventId: UUID,
         @PathVariable playerId: UUID,
         @CurrentUser ownerId: UUID,
-        @RequestBody request: SetRatingRequest,
-    ): RatingDto = ratingService.upsert(ownerId, eventType, eventId, playerId, request.value)
+        @Valid @RequestBody request: SetRatingRequest,
+    ): ResponseEntity<RatingDto> {
+        val result = ratingService.upsert(ownerId, eventType, eventId, playerId, request.value)
+        return if (result == null) ResponseEntity.noContent().build() else ResponseEntity.ok(result)
+    }
+
+    @DeleteMapping("/{id}")
+    fun delete(@PathVariable id: UUID, @CurrentUser ownerId: UUID): ResponseEntity<Void> {
+        ratingService.delete(id, ownerId)
+        return ResponseEntity.noContent().build()
+    }
 }
