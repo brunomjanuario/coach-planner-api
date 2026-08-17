@@ -75,6 +75,18 @@ class TrainingDiagramIT @Autowired constructor(
     }
 
     @Test
+    fun `a diagram over 8192 bytes is rejected with 400 through the real jsonb round trip`() {
+        val token = registerAndGetToken()
+        val hugeText = "a".repeat(9000)
+
+        createTrainingWithExercise(
+            token,
+            """{"description":"SSG","diagram":{"v":1,"pitch":"full","shapes":[{"id":"s1","kind":"text","x":0.5,"y":0.5,"text":"$hugeText"}]}}""",
+        )
+            .andExpect(status().isBadRequest)
+    }
+
+    @Test
     fun `61 shapes are rejected with 400 through the API`() {
         val token = registerAndGetToken()
         val shapes = (1..61).joinToString(",") { """{"id":"s$it","kind":"cone","x":0.5,"y":0.5}""" }

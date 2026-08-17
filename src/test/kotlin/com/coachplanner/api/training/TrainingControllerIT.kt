@@ -210,6 +210,18 @@ class TrainingControllerIT @Autowired constructor(
     }
 
     @Test
+    fun `an invalid day is rejected with 400, not the frontend's Infinity sort fallback`() {
+        val token = registerAndGetToken()
+
+        mockMvc.perform(
+            post("/api/v1/trainings")
+                .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"day":"not-a-date","duration":90}"""),
+        ).andExpect(status().isBadRequest)
+    }
+
+    @Test
     fun `a teamId owned by another user is 400 unknown-team, never 404`() {
         val tokenA = registerAndGetToken()
         val tokenB = registerAndGetToken()
