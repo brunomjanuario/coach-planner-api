@@ -97,17 +97,19 @@ class RivalRowControllerIT @Autowired constructor(
     }
 
     @Test
-    fun `a negative figure on update is rejected with 400, not 500`() {
+    fun `a negative figure that still sums consistently is rejected with 400, not 500`() {
         val token = registerAndGetToken()
         val response = createRival(token, """{"name":"Sporting","played":3,"won":1,"drawn":1,"lost":1,"goalsFor":5,"goalsAgainst":3}""")
             .andExpect(status().isCreated).andReturn().response.contentAsString
         val id = jsonMapper.readTree(response).get("id").asString()
 
+        // won:-1, lost:3 still sums to played:3 — isolates @Valid's bean-validation path from
+        // requireConsistent's sum check, which a plain negative-with-mismatch body wouldn't.
         mockMvc.perform(
             patch("/api/v1/standings/rivals/$id")
                 .header(HttpHeaders.AUTHORIZATION, bearer(token))
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("""{"won":-1}"""),
+                .content("""{"won":-1,"lost":3}"""),
         )
             .andExpect(status().isBadRequest)
             .andExpect(jsonPath("$.errors.won").value("must not be negative"))
