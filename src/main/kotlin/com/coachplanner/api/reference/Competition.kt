@@ -12,11 +12,11 @@ import java.util.UUID
 @Table(name = "competitions")
 class Competition(
     @Id
-    val id: UUID = newId(),
+    override val id: UUID = newId(),
 
     @Column(name = "owner_id", nullable = false)
-    var ownerId: UUID,
+    override var ownerId: UUID,
 
     @Column(nullable = false)
-    var name: String,
-)
+    override var name: String,
+) : ReferenceEntry
