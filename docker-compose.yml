@@ -27,6 +27,9 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-coachplanner}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-coachplanner}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # app.jwt.secret has no default outside the dev profile (T5's fail-fast design) — this
+      # container runs no Spring profile at all, so it must be supplied explicitly.
+      APP_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
     ports:
       - "8080:8080"
 
