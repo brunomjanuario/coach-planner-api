@@ -31,6 +31,8 @@ dependencies {
 	implementation("org.flywaydb:flyway-database-postgresql")
 	implementation("org.jetbrains.kotlin:kotlin-reflect")
 	implementation("tools.jackson.module:jackson-module-kotlin")
+	// 3.1.0 is the first release to target Spring Boot 4.1 explicitly (design.md's AD-101 risk note — verified via the project's release notes before adding).
+	implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0")
 	runtimeOnly("org.postgresql:postgresql")
 	testImplementation("org.springframework.boot:spring-boot-starter-actuator-test")
 	testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
