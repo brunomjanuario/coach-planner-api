@@ -4,8 +4,10 @@ import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.ValidationException
 import com.coachplanner.api.team.TeamRepository
 import com.coachplanner.api.training.dto.CreateTrainingRequest
+import com.coachplanner.api.training.dto.ExerciseDto
 import com.coachplanner.api.training.dto.ExerciseRequest
 import com.coachplanner.api.training.dto.TrainingDto
+import com.coachplanner.api.training.dto.UpdateExerciseRequest
 import com.coachplanner.api.training.dto.UpdateTrainingRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -95,6 +97,67 @@ class TrainingService(
             )
         }
     }
+
+    /** Appends one exercise after the existing ones (AC EXER-02) — index = current size, since indexes stay contiguous 0..n-1 by construction. */
+    @Transactional
+    fun addExercise(trainingId: UUID, ownerId: UUID, request: ExerciseRequest): ExerciseDto {
+        val training = findOwned(trainingId, ownerId)
+        val exercise = Exercise(
+            training = training,
+            orderIndex = training.exercises.size,
+            description = request.description.trim(),
+            numberOfPlayers = request.numberOfPlayers,
+            durationMinutes = request.duration,
+            repetitions = request.repetitions,
+            diagram = diagramValidator.validate(request.diagram),
+        )
+        training.exercises.add(exercise)
+        trainingRepository.saveAndFlush(training)
+        return ExerciseDto.from(exercise)
+    }
+
+    @Transactional
+    fun updateExercise(trainingId: UUID, exerciseId: UUID, ownerId: UUID, request: UpdateExerciseRequest): ExerciseDto {
+        val training = findOwned(trainingId, ownerId)
+        val exercise = findOwnedExercise(training, exerciseId)
+
+        request.description?.let {
+            val trimmed = it.trim()
+            if (trimmed.isEmpty()) throw ValidationException("must not be blank")
+            exercise.description = trimmed
+        }
+        request.numberOfPlayers?.let { exercise.numberOfPlayers = it }
+        request.duration?.let { exercise.durationMinutes = it }
+        request.repetitions?.let { exercise.repetitions = it }
+        request.diagram?.let { exercise.diagram = diagramValidator.validate(it) }
+
+        trainingRepository.saveAndFlush(training)
+        return ExerciseDto.from(exercise)
+    }
+
+    /**
+     * Deleting re-packs the remaining exercises' `order_index` contiguously
+     * (AC EXER-02) — the frontend renders exercise order from array
+     * position alone (design.md), so a gap would be invisible on read but
+     * would corrupt the next wholesale-replace's insert ordering.
+     * `(training_id, order_index)`'s unique index is `DEFERRABLE INITIALLY
+     * DEFERRED`, so the delete and the re-numbering updates may land in any
+     * statement order within this one flush without tripping the
+     * constraint transiently.
+     */
+    @Transactional
+    fun deleteExercise(trainingId: UUID, exerciseId: UUID, ownerId: UUID) {
+        val training = findOwned(trainingId, ownerId)
+        val exercise = findOwnedExercise(training, exerciseId)
+
+        training.exercises.remove(exercise)
+        training.exercises.sortedBy { it.orderIndex }.forEachIndexed { index, remaining -> remaining.orderIndex = index }
+
+        trainingRepository.saveAndFlush(training)
+    }
+
+    private fun findOwnedExercise(training: Training, exerciseId: UUID): Exercise =
+        training.exercises.find { it.id == exerciseId } ?: throw NotFoundException("Exercise not found.")
 
     /**
      * No manual cascade code: exercises (orphanRemoval on the JPA side) and

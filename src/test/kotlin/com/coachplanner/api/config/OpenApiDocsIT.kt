@@ -15,9 +15,11 @@ import tools.jackson.databind.json.JsonMapper
  * tasks.md T47 / AC DOC-01. The path/operation counts below are derived
  * from the real `@RestController` mappings (grep'd directly, not eyeballed
  * from spec.md's endpoint inventory, which counts query-parameter variants
- * as separate rows and would over-count) — 27 distinct path templates, 48
- * total operations across them, matching spec.md's own stated "48
- * endpoints" figure once query-param-variant rows are collapsed.
+ * as separate rows and would over-count) — 29 distinct path templates, 51
+ * total operations across them. spec.md's own "48 endpoints" is the P1–P9
+ * MVP figure; T48 (P3, EXER-02) adds 2 more paths and 3 more operations
+ * for the granular exercise sub-resources, which spec.md's inventory marks
+ * "(P3)" and excludes from that count.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -39,6 +41,8 @@ class OpenApiDocsIT @Autowired constructor(
         "/api/v1/standings/rivals/{id}",
         "/api/v1/trainings",
         "/api/v1/trainings/{id}",
+        "/api/v1/trainings/{trainingId}/exercises",
+        "/api/v1/trainings/{trainingId}/exercises/{exerciseId}",
         "/api/v1/games",
         "/api/v1/games/{id}",
         "/api/v1/games/{id}/result",
@@ -76,10 +80,10 @@ class OpenApiDocsIT @Autowired constructor(
         assert(actualPaths == expectedPaths) {
             "path set mismatch.\nmissing: ${expectedPaths - actualPaths}\nunexpected: ${actualPaths - expectedPaths}"
         }
-        assert(actualPaths.size == 27) { "expected 27 distinct path templates, got ${actualPaths.size}" }
+        assert(actualPaths.size == 29) { "expected 29 distinct path templates, got ${actualPaths.size}" }
 
         val operationCount = actualPaths.sumOf { path -> paths.get(path).properties().count { (key, _) -> key in httpMethods } }
-        assert(operationCount == 48) { "expected 48 total operations across all paths, got $operationCount" }
+        assert(operationCount == 51) { "expected 51 total operations across all paths, got $operationCount" }
     }
 
     @Test
