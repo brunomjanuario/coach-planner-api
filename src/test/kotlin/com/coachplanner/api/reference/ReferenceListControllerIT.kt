@@ -201,4 +201,57 @@ class ReferenceListControllerIT @Autowired constructor(
         val reloadedGame = gameRepository.findById(game.id).orElseThrow()
         assert(case.nameOnGame(reloadedGame) == "District League") { "expected the game's name to be untouched by a no-op rename" }
     }
+
+    /** tasks.md T46 / AC COMP-03. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `a case-different duplicate name is rejected with 409 on create`(case: ReferenceListCase) {
+        val (token, _) = registerAndGetToken()
+        create(token, case.basePath, "Cup").andExpect(status().isCreated)
+
+        create(token, case.basePath, "cup")
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/duplicate-name"))
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `a duplicate name that differs only by case and surrounding whitespace is rejected with 409 on create`(case: ReferenceListCase) {
+        val (token, _) = registerAndGetToken()
+        create(token, case.basePath, "Cup").andExpect(status().isCreated)
+
+        create(token, case.basePath, "  CUP  ")
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/duplicate-name"))
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `the same name under two different users both succeed`(case: ReferenceListCase) {
+        val (tokenA, _) = registerAndGetToken()
+        val (tokenB, _) = registerAndGetToken()
+
+        create(tokenA, case.basePath, "Cup").andExpect(status().isCreated)
+        create(tokenB, case.basePath, "Cup").andExpect(status().isCreated)
+    }
+
+    /** tasks.md T46 / AC COMP-03, the rename path. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `renaming to a case-different duplicate is rejected with 409`(case: ReferenceListCase) {
+        val (token, _) = registerAndGetToken()
+        create(token, case.basePath, "Cup").andExpect(status().isCreated)
+        val secondResponse = create(token, case.basePath, "Shield")
+            .andExpect(status().isCreated).andReturn().response.contentAsString
+        val secondId = jsonMapper.readTree(secondResponse).get("id").asString()
+
+        mockMvc.perform(
+            patch("${case.basePath}/$secondId")
+                .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"cup"}"""),
+        )
+            .andExpect(status().isConflict)
+            .andExpect(jsonPath("$.type").value("https://coachplanner.dev/problems/duplicate-name"))
+    }
 }

@@ -1,11 +1,15 @@
 package com.coachplanner.api.reference
 
+import com.coachplanner.api.common.ConflictException
 import com.coachplanner.api.common.NotFoundException
 import com.coachplanner.api.common.OwnedRepository
 import com.coachplanner.api.common.ValidationException
 import com.coachplanner.api.reference.dto.ReferenceEntryDto
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
+
+private const val DUPLICATE_NAME = "duplicate-name"
 
 /**
  * Generic over both managed reference lists (AD-104): competitions and
@@ -39,11 +43,21 @@ open class ReferenceListService<T : ReferenceEntry>(
             .sortedBy { it.name.lowercase() }
             .map { ReferenceEntryDto(it.id, it.name) }
 
-    /** The trimmed name is what's stored and returned (AC COMP-04). */
+    /**
+     * The trimmed name is what's stored and returned (AC COMP-04). The
+     * `(owner_id, lower(name))` unique index is the real duplicate guard (AC
+     * COMP-03) — this only translates its violation into `409`; there is no
+     * application-level pre-check to race against (the frontend's own
+     * `normalize()+some()` check has exactly that TOCTOU race).
+     */
     @Transactional
     open fun create(ownerId: UUID, name: String): ReferenceEntryDto {
         val trimmed = requireNonBlank(name)
-        val saved = repository.saveAndFlush(newEntry(ownerId, trimmed))
+        val saved = try {
+            repository.saveAndFlush(newEntry(ownerId, trimmed))
+        } catch (ex: DataIntegrityViolationException) {
+            throw ConflictException("An entry named \"$trimmed\" already exists.", DUPLICATE_NAME)
+        }
         return ReferenceEntryDto(saved.id, saved.name)
     }
 
@@ -66,7 +80,11 @@ open class ReferenceListService<T : ReferenceEntry>(
         if (trimmed == oldName) return ReferenceEntryDto(entry.id, entry.name)
 
         entry.name = trimmed
-        val saved = repository.saveAndFlush(entry)
+        val saved = try {
+            repository.saveAndFlush(entry)
+        } catch (ex: DataIntegrityViolationException) {
+            throw ConflictException("An entry named \"$trimmed\" already exists.", DUPLICATE_NAME)
+        }
         cascadeRename(ownerId, oldName, trimmed)
 
         return ReferenceEntryDto(saved.id, saved.name)
