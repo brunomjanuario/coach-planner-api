@@ -7,6 +7,7 @@ import jakarta.validation.Valid
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -27,6 +28,13 @@ class CompetitionController(private val service: ReferenceListService<Competitio
         val created = service.create(ownerId, request.name)
         return ResponseEntity.created(URI.create("/api/v1/competitions/${created.id}")).body(created)
     }
+
+    @PatchMapping("/{id}")
+    fun rename(
+        @PathVariable id: UUID,
+        @CurrentUser ownerId: UUID,
+        @Valid @RequestBody request: ReferenceEntryRequest,
+    ): ReferenceEntryDto = service.rename(id, ownerId, request.name)
 
     @DeleteMapping("/{id}")
     fun delete(@PathVariable id: UUID, @CurrentUser ownerId: UUID): ResponseEntity<Void> {

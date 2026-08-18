@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActions
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.header
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
@@ -148,5 +149,56 @@ class ReferenceListControllerIT @Autowired constructor(
 
         val remaining = jsonMapper.readTree(getAll(token, case.basePath)).toList()
         assert(remaining.isEmpty()) { "expected the deleted entry to be gone from the list" }
+    }
+
+    /** tasks.md T45 / AC COMP-05/06. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `renaming an entry cascades to every one of the caller's games carrying the old name`(case: ReferenceListCase) {
+        val (token, ownerId) = registerAndGetToken()
+        val response = create(token, case.basePath, "District League")
+            .andExpect(status().isCreated).andReturn().response.contentAsString
+        val id = jsonMapper.readTree(response).get("id").asString()
+
+        val gameA = gameRepository.saveAndFlush(case.gameWithName(ownerId, "district league"))
+        val gameB = gameRepository.saveAndFlush(case.gameWithName(ownerId, "DISTRICT LEAGUE"))
+
+        mockMvc.perform(
+            patch("${case.basePath}/$id")
+                .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"Premier League"}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("Premier League"))
+
+        val reloadedA = gameRepository.findById(gameA.id).orElseThrow()
+        val reloadedB = gameRepository.findById(gameB.id).orElseThrow()
+        assert(case.nameOnGame(reloadedA) == "Premier League") { "expected gameA's name to cascade, got ${case.nameOnGame(reloadedA)}" }
+        assert(case.nameOnGame(reloadedB) == "Premier League") { "expected gameB's name to cascade, got ${case.nameOnGame(reloadedB)}" }
+    }
+
+    /** tasks.md T45 / AC COMP-08. */
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("cases")
+    fun `a no-op rename to the same trimmed name performs no cascade and returns 200`(case: ReferenceListCase) {
+        val (token, ownerId) = registerAndGetToken()
+        val response = create(token, case.basePath, "District League")
+            .andExpect(status().isCreated).andReturn().response.contentAsString
+        val id = jsonMapper.readTree(response).get("id").asString()
+
+        val game = gameRepository.saveAndFlush(case.gameWithName(ownerId, "District League"))
+
+        mockMvc.perform(
+            patch("${case.basePath}/$id")
+                .header(HttpHeaders.AUTHORIZATION, bearer(token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"name":"  District League  "}"""),
+        )
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$.name").value("District League"))
+
+        val reloadedGame = gameRepository.findById(game.id).orElseThrow()
+        assert(case.nameOnGame(reloadedGame) == "District League") { "expected the game's name to be untouched by a no-op rename" }
     }
 }
