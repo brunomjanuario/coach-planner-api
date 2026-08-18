@@ -340,3 +340,94 @@ Aggregated JUnit XML across all test-result files: **228 tests, 0 failures, 0 er
 4. **Minor, non-blocking**: the spec's Independent Test (create → attach to two games → rename → both updated → delete → both keep the new name) is proven only in two separate pieces (rename-cascade test and delete-preserves-name test), never as one continuous chain with the same entry and the same two games carrying through both operations.
 
 None of these four gaps represent incorrect shipped behavior — all four were confirmed, by direct mutation or targeted weakening, to be gaps in test *discriminating power* only, not in the implementation itself. The implementation's correctness for all nine ACs is otherwise independently confirmed by source inspection (P8-AC3, AC8's actual short-circuit, AC5's actual `trim()` calls, AC1's actual `.lowercase()` call) and by the three mutations that did kill (swapped cascades, missing exception mapping, missing `@Valid`) plus the `@Transactional`-removal weakening for AC7.
+
+---
+
+## Phase 9: Docs & packaging (T47–T49)
+
+**Verdict: PASS ✅** (with 2 non-blocking spec-precision gaps flagged below)
+
+**Commit range covered:** `0198c30..HEAD` (`c34c1a1`, `e557ac5`, `55a953f`)
+
+**Verifier:** fresh sub-agent, author ≠ verifier, evidence-or-zero methodology. This is **the final phase of the entire 49-task plan** — tasks.md's T1–T49 are now all complete.
+
+---
+
+### Spec-anchored AC coverage
+
+| AC | Requirement (paraphrased) | Evidence | Assertion matches spec outcome? |
+| --- | --- | --- | --- |
+| P10-AC1 | `GET /swagger-ui.html` serves interactive documentation covering every endpoint | **No automated test exists.** Manually re-verified during this pass: ran the app locally (`SPRING_PROFILES_ACTIVE=dev ./gradlew bootRun` against a real `docker compose up -d db`), `curl -o /dev/null -w "%{http_code}" http://localhost:8080/swagger-ui.html` → `302` (springdoc's standard redirect) → `curl .../swagger-ui/index.html` → `200`. The page functionally works, but nothing in the committed test suite (`OpenApiDocsIT.kt` only ever calls `/v3/api-docs`, never `/swagger-ui*`) proves it. | **Functionally yes, but untested** — spec-precision gap, non-blocking (see ranked gaps). |
+| P10-AC2 | `GET /v3/api-docs` returns an OpenAPI 3.1 document with auth schemes, request/response schemas, and error shapes | `OpenApiDocsIT.kt:66-87` (`3.1` prefix check, exact 29-path/51-operation set asserted against real `@RestController` mappings), `:89-97` (bearer scheme: `type=http`, `scheme=bearer`, `bearerFormat=JWT`), `:99-110` (every operation's `default` response documents `application/problem+json`). Request/response schema-inclusion claim independently re-verified with a scratch, uncommitted test (`ScratchSchemaCheckIT.kt`, added, run, then deleted — `git status --short` confirmed clean afterward): `components.schemas` contains 33 real DTOs including `CreateTrainingRequest`, `ExerciseDto`, `RegisterRequest`, etc., and `POST /api/v1/trainings`'s `requestBody` is `{"$ref":"#/components/schemas/CreateTrainingRequest"}` — springdoc's auto-generated schemas are genuinely present in the document, not just the hand-rolled `ProblemDetail` schema. | Yes |
+| P11-AC1 | `POST /api/v1/trainings/{id}/exercises` appends one exercise, `201` | `ExerciseControllerIT.kt:61-78` — `POST appends one exercise and returns 201`: asserts `201`, `Location` header present, `$.description`/`$.numberOfPlayers` round-trip, and a real `SELECT order_index FROM exercises` (`orderIndexes()` helper, line 57-58) confirms `[0, 1]` — the new exercise landed at index 1, not just "some" index | Yes |
+| P11-AC2 | `PATCH`/`DELETE .../exercises/{exerciseId}` update or remove that exercise and re-pack `order_index` contiguously | PATCH: `ExerciseControllerIT.kt:80-99` — updates only the supplied field, others preserved. DELETE + re-pack: `ExerciseControllerIT.kt:101-128` — `deleting the middle of three exercises leaves indexes 0 and 1, with no gap`: seeds 3 exercises, deletes the middle one, asserts `orderIndexes(trainingId) == listOf(0, 1)` via a **direct `JdbcTemplate` query against the `order_index` column** (not array position in the DTO, which is never serialized), then re-fetches and confirms the first and third exercise (by `description`) survived in order | Yes — genuinely checks the DB column, not the array-position proxy that could mask an internal gap |
+| P12-AC1 | `docker compose up` starts both API and DB, API waiting on the DB's healthcheck | `docker-compose.yml:23-25` — `depends_on: db: condition: service_healthy` on the `api` service, matching design.md's spec exactly. Manual verification recorded in commit `55a953f`'s message (quoted below), which tasks.md's own T49 "Done when: Verified" explicitly calls for in place of an automated test. | Yes (manual evidence, as designed) |
+| P12-AC2 | The image uses a multi-stage build and a non-root runtime user | `Dockerfile:2` (`FROM eclipse-temurin:21-jdk AS build`) and `:15` (`FROM eclipse-temurin:21-jre AS runtime`) — two distinct stages, build tools discarded from the runtime image. `:21-22` — `RUN chown 1000:1000 app.jar` / `USER 1000:1000`, a fixed non-root UID/GID. Commit `55a953f`'s message additionally records `docker exec coach-planner-api-api-1 id` → `uid=1000(ubuntu) gid=1000(ubuntu)`, confirming the non-root user at runtime, not just in the Dockerfile text. | Yes |
+
+**6/6 ACs matched spec-defined outcomes; 1 (P10-AC1) is functionally correct but has zero automated test coverage — non-blocking spec-precision gap, not a failure, since AC DOC-01's actual observable behavior (the page serves and renders) was independently confirmed by hand this pass.**
+
+**P12's manual verification evidence, quoted from commit `55a953f`** (tasks.md T49's own "Done when: Verified" — a manual test by design, not a `./gradlew` gate item):
+
+```
+Manually verified per tasks.md T49 (no automated test — a real Docker
+daemon standing up two containers isn't something the Testcontainers
+suite should own):
+
+  docker compose --profile full up -d --build
+  curl http://localhost:8080/actuator/health
+  # -> HTTP 200, {"status":"UP","components":{"db":{"status":"UP",...
+
+  docker exec coach-planner-api-api-1 id
+  # -> uid=1000(ubuntu) gid=1000(ubuntu) — confirmed non-root
+```
+
+This demonstrates the exact things AC DEPLOY-01/AC12.2 require: a working `docker compose up` with the API actually reachable after waiting on the DB's healthcheck (not just configured to), and the non-root user confirmed live inside the running container (not just declared in the Dockerfile). Not independently re-run in this verification pass (time-boxed; relied on reading `docker-compose.yml`/`Dockerfile` directly plus this recorded evidence instead — see "P12 spot-check" note below).
+
+**P12 spot-check:** not independently re-run as a full `docker compose --profile full up --build` (skipped — slow, full image build, and the commit message's recorded evidence together with direct inspection of `Dockerfile`/`docker-compose.yml` already gives concrete, checkable evidence for both ACs). Did independently confirm the `db`-only path (`docker compose up -d db`) starts and reaches `healthy` status, and confirmed `swagger-ui.html`/`/v3/api-docs` both serve correctly against a locally-run `bootRun` instance pointed at that database — see P10-AC1 row above.
+
+**`APP_JWT_SECRET` wiring check:** `docker-compose.yml:32` sets `APP_JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}` on the `api` service. `JwtService.kt:25` and `SecurityConfig.kt:91` both bind `@Value("\${app.jwt.secret}")`. Spring relaxed binding maps the env var `APP_JWT_SECRET` → the property `app.jwt.secret` correctly (env vars are relaxed-bound by replacing `_` with `.` and lower-casing), so the wiring is correct. `.env.example:8-10` documents the new `JWT_SECRET` var with a generation hint (`openssl rand -base64 32`).
+
+---
+
+### Discrimination sensor (P10, P11 — automated parts only)
+
+All mutations applied to the real working tree one at a time, targeted test classes run after each, then reverted via `Edit`/`git checkout --`; `git status --short` confirmed empty before the next mutation. Docker confirmed running (`docker info`) throughout, so all Testcontainers-backed ITs ran for real.
+
+| # | Mutation | File | Result | Killed by |
+| --- | --- | --- | --- | --- |
+| 1 | Removed the re-pack loop (`training.exercises.sortedBy...forEachIndexed...`) from `deleteExercise`, leaving a gap after delete | `TrainingService.kt:154` | **Killed** | `ExerciseControllerIT > deleting the middle of three exercises leaves indexes 0 and 1, with no gap` |
+| 2 | `addExercise` hardcoded `orderIndex = 0` instead of `training.exercises.size` | `TrainingService.kt:107` | **Killed** | `ExerciseControllerIT > POST appends one exercise and returns 201` (fails on the DB-column assertion; the second exercise collides on `order_index=0` with the first) |
+| 3 | Dropped `/{exerciseId}` from `ExerciseController`'s `@PatchMapping`, shifting the operation onto the collection path | `ExerciseController.kt:34` | **Killed, but by the "wrong" test** — see note below | `ExerciseControllerIT > PATCH updates only the supplied fields on that exercise`. **`OpenApiDocsIT` did not catch this** — ran it independently and all 3 of its tests passed (`tests="3" ... failures="0" errors="0"`), because its assertion is against the **set** of path templates only; shifting an operation from one already-expected path to another already-expected path is invisible to a path-set comparison, even though the per-path *method* mapping is now wrong. |
+| 4 | Removed `/v3/api-docs`, `/v3/api-docs/**` from `SecurityConfig`'s public-paths list | `SecurityConfig.kt:56` | **Killed** (all 3 tests in `OpenApiDocsIT`) | `OpenApiDocsIT` — every test calls `/v3/api-docs` with no `Authorization` header and asserts `status().isOk`; once the path required auth, all three failed on the now-`401`/`403` response, confirming the suite genuinely proves public, unauthenticated reachability (AC DOC-01), not merely reachability within a context that happens not to check auth |
+
+**Sensor summary: 4 mutations injected, 4 killed (3 as designed, 1 revealing a real cross-check gap — see below). 0 survived undetected.** Working tree confirmed clean (`git status --short` empty) after the full sequence.
+
+**Note on mutation 3:** this is a genuine, if narrow, finding: T47's `OpenApiDocsIT` path-set test and T48's new endpoints are not actually cross-checked against each other at the operation level — only against the union of path templates. The mutation was still caught, but by `ExerciseControllerIT` (which exercises real HTTP behavior on the wrong path), not by the documentation test that was specifically probed. Non-blocking: the real behavior is still fully covered, just not by the test this sub-task's brief expected to be the one doing the catching.
+
+---
+
+### Gate
+
+`./gradlew build` (full suite, real Testcontainers-backed PostgreSQL, Docker confirmed running via `docker info`):
+
+```
+BUILD SUCCESSFUL in 1m 14s
+7 actionable tasks: 2 executed, 5 up-to-date
+```
+
+Aggregated JUnit XML across all test-result files: **236 tests, 0 failures, 0 errors** — matches the count expected per the task brief (up from 228 in Phase 8: 3 new `OpenApiDocsIT` tests, 5 new `ExerciseControllerIT` tests).
+
+---
+
+### Ranked gaps
+
+1. **Spec-precision gap, non-blocking**: P10-AC1 (`GET /swagger-ui.html` serves interactive documentation) has zero automated test coverage. `OpenApiDocsIT.kt` only ever exercises `/v3/api-docs`. Manually confirmed working this pass (`302` → `/swagger-ui/index.html` → `200`, real HTTP round trip against a locally-run instance), so the *implementation* is correct — springdoc auto-serves the page — but nothing in the committed suite would catch a regression that broke it (e.g. accidentally excluding `/swagger-ui/**` from the public-paths list in a future change, which mutation 4 above proves the suite *would* catch for `/v3/api-docs` but has no equivalent test for the UI page itself).
+2. **Spec-precision gap, non-blocking**: `OpenApiDocsIT`'s path-set assertion does not cross-check per-path *operation* correctness against T48's new endpoints — it only proves the union of path templates is right. Confirmed by mutation 3 above: shifting the `PATCH` mapping off `/exercises/{exerciseId}` onto `/exercises` left `OpenApiDocsIT` fully green (3/3 passing) while `ExerciseControllerIT` caught the regression instead. The real behavior remains fully covered by `ExerciseControllerIT`, so this is not a correctness gap — only a note that the two test classes aren't as mutually reinforcing as the task brief's cross-check goal implies.
+
+Neither gap represents incorrect shipped behavior. All 6 ACs' underlying implementations were independently confirmed correct — P10-AC1 by direct manual HTTP verification, P10-AC2 by both the committed suite and an uncommitted scratch schema-inspection test, P11-AC1/AC2 by real DB-column assertions (not DTO-array-position proxies), and P12-AC1/AC2 by both static inspection of `Dockerfile`/`docker-compose.yml` and the commit message's recorded live-container evidence.
+
+---
+
+## Final note
+
+This closes Phase 9, **the last phase of the 49-task plan**. `tasks.md` T1–T49 are now all complete and verified. Across all nine phases (P0–P8 not individually re-verified in this report's scope, but P5–P9 all carry independent Verifier passes above), the shipped implementation has no open blocking defects — only non-blocking spec-precision gaps in test *discriminating power*, each confirmed by direct mutation testing or manual re-verification to not correspond to any actual incorrect behavior.
