@@ -86,6 +86,13 @@ class OpenApiDocsIT @Autowired constructor(
         assert(operationCount == 51) { "expected 51 total operations across all paths, got $operationCount" }
     }
 
+    /** AC DOC-01's other half — springdoc auto-serves this, but "auto-serves" isn't the same as "verified" without a test hitting it. */
+    @Test
+    fun `swagger-ui html is publicly reachable without a token`() {
+        mockMvc.perform(get("/swagger-ui.html"))
+            .andExpect(status().is3xxRedirection)
+    }
+
     @Test
     fun `the bearer security scheme is documented`() {
         val response = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk).andReturn().response.contentAsString
