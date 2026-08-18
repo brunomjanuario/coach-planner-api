@@ -120,13 +120,16 @@ class ReferenceListControllerIT @Autowired constructor(
     @MethodSource("cases")
     fun `GET orders the list case-insensitively`(case: ReferenceListCase) {
         val (token, _) = registerAndGetToken()
-        create(token, case.basePath, "zebra").andExpect(status().isCreated)
-        create(token, case.basePath, "Apple").andExpect(status().isCreated)
-        create(token, case.basePath, "banana").andExpect(status().isCreated)
+        // "Zebra" vs "apple": raw ASCII puts 'Z' (90) before 'a' (97), the opposite of
+        // case-insensitive order — a fixture where the two orderings actually diverge,
+        // unlike an all-same-case-pattern set that both a correct and a naive
+        // case-sensitive sort would happen to agree on.
+        create(token, case.basePath, "Zebra").andExpect(status().isCreated)
+        create(token, case.basePath, "apple").andExpect(status().isCreated)
 
         val names = jsonMapper.readTree(getAll(token, case.basePath)).toList().map { it.get("name").asString() }
 
-        assert(names == listOf("Apple", "banana", "zebra")) { "expected case-insensitive ordering, got $names" }
+        assert(names == listOf("apple", "Zebra")) { "expected case-insensitive ordering, got $names" }
     }
 
     @ParameterizedTest(name = "{0}")
@@ -161,7 +164,10 @@ class ReferenceListControllerIT @Autowired constructor(
         val id = jsonMapper.readTree(response).get("id").asString()
 
         val gameA = gameRepository.saveAndFlush(case.gameWithName(ownerId, "district league"))
-        val gameB = gameRepository.saveAndFlush(case.gameWithName(ownerId, "DISTRICT LEAGUE"))
+        // Surrounding whitespace on the stored value itself (not just the rename request's
+        // input) — proves the cascade's own lookup trims before matching, not just that the
+        // caller's already-clean input matches.
+        val gameB = gameRepository.saveAndFlush(case.gameWithName(ownerId, "  DISTRICT LEAGUE  "))
 
         mockMvc.perform(
             patch("${case.basePath}/$id")
@@ -187,7 +193,10 @@ class ReferenceListControllerIT @Autowired constructor(
             .andExpect(status().isCreated).andReturn().response.contentAsString
         val id = jsonMapper.readTree(response).get("id").asString()
 
-        val game = gameRepository.saveAndFlush(case.gameWithName(ownerId, "District League"))
+        // A case-different variant of the entry's own name: if the cascade ran despite being
+        // a no-op rename, it would normalize this game's stored value to "District League" —
+        // the only way to tell "skipped" from "ran redundantly to the same effective name".
+        val game = gameRepository.saveAndFlush(case.gameWithName(ownerId, "district league"))
 
         mockMvc.perform(
             patch("${case.basePath}/$id")
@@ -199,7 +208,9 @@ class ReferenceListControllerIT @Autowired constructor(
             .andExpect(jsonPath("$.name").value("District League"))
 
         val reloadedGame = gameRepository.findById(game.id).orElseThrow()
-        assert(case.nameOnGame(reloadedGame) == "District League") { "expected the game's name to be untouched by a no-op rename" }
+        assert(case.nameOnGame(reloadedGame) == "district league") {
+            "expected the game's name to be untouched by a no-op rename (no cascade), got ${case.nameOnGame(reloadedGame)}"
+        }
     }
 
     /** tasks.md T46 / AC COMP-03. */
