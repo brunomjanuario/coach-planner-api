@@ -11,12 +11,22 @@ import org.springframework.context.annotation.Configuration
  * feature — not by bean name.
  */
 @Configuration
-class ReferenceListConfig(private val competitionRepository: CompetitionRepository) {
+class ReferenceListConfig(
+    private val competitionRepository: CompetitionRepository,
+    private val opponentRepository: OpponentRepository,
+) {
 
     @Bean
     fun competitionReferenceListService(): ReferenceListService<Competition> =
         ReferenceListService(
             repository = competitionRepository,
             newEntry = { ownerId, name -> Competition(ownerId = ownerId, name = name) },
+        )
+
+    @Bean
+    fun opponentReferenceListService(): ReferenceListService<Opponent> =
+        ReferenceListService(
+            repository = opponentRepository,
+            newEntry = { ownerId, name -> Opponent(ownerId = ownerId, name = name) },
         )
 }
