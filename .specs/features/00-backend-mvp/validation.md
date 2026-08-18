@@ -265,3 +265,78 @@ The concurrency test (`RatingUpsertIT`'s `concurrent PUT calls for the same trip
 ### Ranked gaps
 
 None. All 11 ACs matched, the spec's Independent Test is proven as a single chain, the T42 edge-case substitution was verified to exercise the same code branch as the scenario it stands in for, and all 7 targeted mutations were killed.
+
+---
+
+## Phase 8: Reference lists (T43–T46)
+
+**Verdict: PASS ✅** (with 3 non-blocking spec-precision gaps flagged below)
+
+**Commit range covered:** `fd34a97..HEAD` (`499bc93`, `338f659`, `1a49235`, `ec20769`)
+
+**Verifier:** fresh sub-agent, author ≠ verifier, evidence-or-zero methodology.
+
+---
+
+### Spec-anchored AC coverage
+
+| AC | Requirement (paraphrased) | Evidence (file:line) | Assertion matches spec outcome? |
+| --- | --- | --- | --- |
+| P8-AC1 | `GET /competitions`/`GET /opponents` returns caller's list ordered case-insensitively | `ReferenceListControllerIT.kt:121-130` — `GET orders the list case-insensitively`: creates "zebra", "Apple", "banana", asserts `names == listOf("Apple", "banana", "zebra")` | Yes, but **fixture doesn't discriminate case-insensitive sort from plain lexicographic sort** — see sensor mutation 5 below. Flagged as a spec-precision gap, not a failure. |
+| P8-AC2 | Name that trims to empty → `400` | `ReferenceListControllerIT.kt:111-117` — `a whitespace-only name is rejected with 400`: `"   "`, asserts `400` + `$.errors.name == "must not be blank"` | Yes |
+| P8-AC3 | Case-insensitive duplicate after trim → `409`, enforced by DB unique index, not application logic alone | `ReferenceListControllerIT.kt:208-215` (`"Cup"`→`"cup"`), `:219-226` (`"Cup"`→`"  CUP  "`), `:241-256` (rename path, `"cup"` against existing `"Cup"`) — all assert `409` + `$.type` = `.../problems/duplicate-name`. Source inspection of `ReferenceListService.kt:53-58` confirms **no application-level pre-check** exists before `saveAndFlush` — the only guard is the `catch (DataIntegrityViolationException)` block, so the index is genuinely the enforcement mechanism, not a race-prone `some()`-style check. | Yes |
+| P8-AC4 | Created entry stores the **trimmed** name | `ReferenceListControllerIT.kt:100-107` — `a name with surrounding whitespace is stored and returned trimmed`: `"  Cup  "` → `$.name == "Cup"` | Yes |
+| P8-AC5 | `PATCH` renames in one transaction, rewrites `games.competition` on the caller's games matching case-insensitively on the trimmed old name | `ReferenceListControllerIT.kt:157-179` — `renaming an entry cascades to every one of the caller's games carrying the old name` (Competition case): entry `"District League"`, games seeded with `"district league"` and `"DISTRICT LEAGUE"` (case variance proven), both reload with `competition == "Premier League"` | Case-insensitivity: yes. **Trim-matching against stored games is not proven** — no seeded game has surrounding whitespace in its stored name; see sensor mutation 2 below. Spec-precision gap, not a failure (the create/rename-input trim is well covered; it's specifically the cascade-side match against an untrimmed stored value that has no test). |
+| P8-AC6 | Opponent rename cascades to `games.opponent`, does NOT touch a rival standings row sharing the name | Cascade: `ReferenceListControllerIT.kt:157-179` (Opponent case). Non-touch: `OpponentRenameIT.kt:44-70` — `renaming an opponent does not touch a rival standings row sharing that name`: seeds a `RivalRow` named `"Benfica"`, renames the opponent `"Benfica"`→`"S.L. Benfica"`, asserts `reloadedRow.name == "Benfica"` unchanged | Yes |
+| P8-AC7 | Cascade fails partway → roll back the rename entirely | `ReferenceListRenameRollbackIT.kt:64-109` — `a forced mid-cascade failure rolls back the rename entirely`. Read line-by-line: `@MockitoSpyBean` on `GameRepository`; two games seeded for real (`:77-82`) *before* the stub is installed (`:85-91`); the stub only throws on the **2nd** call to `saveAndFlush`, so gameA's cascade write is a real, flushed `callRealMethod()` and only gameB's write fails — this is a genuine after-first-flush failure, not a before-any-write one. Final assertions (`:100-108`) check both games' `competition` reverted to `"District League"` AND the competition entry's own name (via `GET /competitions`) reverted to `"District League"`. | Yes — verified doubly: read the mechanism by hand, then ran a deliberate weakening (stripped `@Transactional` from `ReferenceListService.rename`) and confirmed the test fails without it (`ReferenceListRenameRollbackIT > a forced mid-cascade failure rolls back the rename entirely() FAILED`), proving the test genuinely depends on the transaction boundary, not on incidental behavior. |
+| P8-AC8 | Rename to the same trimmed name → no cascade, `200` | `ReferenceListControllerIT.kt:184-203` — `a no-op rename to the same trimmed name performs no cascade and returns 200` | **Weaker than claimed.** The test only checks the returned/game names, which are identical whether or not the cascade actually ran (the new name equals the old name either way, so a cascade that fires anyway is unobservable through this test). Confirmed by sensor mutation 1 below: removing the no-op short-circuit entirely, the test suite still passes. This does not prove "skips the cascade" — only that the end state is correct, which holds either way. Flagged as a real spec-precision gap. |
+| P8-AC9 | `DELETE` leaves the name on historical games | `ReferenceListControllerIT.kt:134-152` — `DELETE removes the entry and leaves its name on historical games`: deletes the entry, reloads the game, asserts its name is unchanged; also asserts the entry is gone from the list | Yes |
+
+**7/9 ACs cleanly matched; 3 ACs (P8-AC1, P8-AC5, P8-AC8) have file:line evidence that nominally passes but was shown by mutation testing not to fully discriminate the claimed behavior — see sensor results and ranked gaps below. All are non-blocking: the underlying behavior is still correct in the shipped code (confirmed by mutation 3, 4, 6, 7 killing real defects, and by the deliberate `@Transactional` removal for AC7), only the *tests'* discriminating power is short of what their names claim for AC1/AC5/AC8.**
+
+### Spec's Independent Test ("Create a competition, attach it to two games, rename it → both games carry the new name; delete it → both games keep it")
+
+**Proven only in pieces, not as one continuous chain.** `ReferenceListControllerIT.kt:157-179` proves create→attach→rename→both-updated. `ReferenceListControllerIT.kt:134-152` separately proves create→attach→delete→name-kept, but with only **one** game, not two, and as an entirely separate entry/test run (a fresh entry is created, not the same one that was just renamed). No single test walks create → attach two games → rename → both updated → delete → both games still carry the new (post-rename) name. Non-blocking (each half is independently well-tested), but flagged since the prior phases' reports (5, 6) treat this exact pattern as worth calling out explicitly.
+
+---
+
+### Discrimination sensor
+
+All mutations applied to the real working tree one at a time, `./gradlew test --tests "com.coachplanner.api.reference.*"` run after each, then reverted via `Edit` back to the original text; `git status --short` confirmed empty before the next mutation. Docker confirmed running (`docker info`) throughout, so all Testcontainers-backed ITs ran for real.
+
+| # | Mutation | File | Result | Killed by |
+| --- | --- | --- | --- | --- |
+| 1 | Removed the `if (trimmed == oldName) return ...` no-op short-circuit in `rename()`, so a no-op rename always cascades | `ReferenceListService.kt:76` | **Survived** | — (see P8-AC8 gap above: no test observes whether the cascade fired when the new name equals the old name) |
+| 2 | Removed `trim()` from both `GameRepository` `IgnoreCase` queries, so only exact-whitespace matches cascade | `GameRepository.kt:16,19` | **Survived** | — (see P8-AC5 gap above: no seeded game in the rename-cascade tests has surrounding whitespace in its stored value, so the two case-variant fixtures already had no whitespace to trim) |
+| 3 | Swapped the two cascade lambdas in `ReferenceListConfig` (competition bean wired to `findAllByOwnerIdAndOpponentIgnoreCase`, opponent bean to the competition variant) | `ReferenceListConfig.kt:27-45` | **Killed** | `ReferenceListControllerIT > renaming an entry cascades to every one of the caller's games carrying the old name(...) > Competition`, `...> Opponent`, `ReferenceListRenameRollbackIT > a forced mid-cascade failure rolls back the rename entirely()` |
+| 4 | Removed `catch (DataIntegrityViolationException)` from `create()`, letting a duplicate-name violation surface as `500` | `ReferenceListService.kt:56-60` | **Killed** | `ReferenceListControllerIT > a case-different duplicate name is rejected with 409 on create(...) > Competition/Opponent`, `...a duplicate name that differs only by case and surrounding whitespace...(...) > Competition/Opponent` |
+| 5 | `getAll()`'s `.sortedBy { it.name.lowercase() }` → `.sortedBy { it.name }` (plain, case-sensitive) | `ReferenceListService.kt:43` | **Survived** | — (see P8-AC1 gap above: the fixture `"zebra"`, `"Apple"`, `"banana"` happens to sort identically under plain ASCII lexicographic order, since all three differ only in leading-character case and ASCII places every uppercase letter before every lowercase one) |
+| 6 | Removed `@Valid` from `CompetitionController.create` | `CompetitionController.kt:27` | **Killed** | `ReferenceListControllerIT > a whitespace-only name is rejected with 400(...) > Competition` (only the Competition case failed, as expected — `OpponentController` was untouched, confirming the two controllers are independently exercised, not one covering for the other) |
+| 7 (exploratory, not part of the required set) | Reordered `rename()` to call `cascadeRename` before `repository.saveAndFlush(entry)` | `ReferenceListService.kt:78-86` | **Survived** — expected and non-blocking, since both writes remain inside the same `@Transactional` boundary regardless of order; no test asserts write ordering, and correctness doesn't depend on it here | — |
+| — (weakening check for AC7, not a mutation of shipped behavior) | Removed `@Transactional` from `rename()` | `ReferenceListService.kt:70` | **Killed** | `ReferenceListRenameRollbackIT > a forced mid-cascade failure rolls back the rename entirely()` — confirms the rollback test genuinely depends on the transaction boundary |
+
+**Sensor summary: 7 mutations injected (6 required + 1 exploratory), 3 killed outright, 3 survived and exposed genuine (non-blocking) spec-precision gaps in the AC1/AC5/AC8 tests, 1 exploratory mutation survived as expected with no correctness implication. A separate targeted weakening (stripping `@Transactional`) confirmed AC7's rollback test is load-bearing.** Working tree confirmed clean (`git status --short` empty, `git diff --stat` empty against `HEAD`) after the full sequence.
+
+---
+
+### Gate
+
+`./gradlew clean build` (full suite, real Testcontainers-backed PostgreSQL, Docker confirmed running via `docker info`):
+
+```
+BUILD SUCCESSFUL in 1m 15s
+8 actionable tasks: 8 executed
+```
+
+Aggregated JUnit XML across all test-result files: **228 tests, 0 failures, 0 errors** — matches the count expected per the task brief.
+
+---
+
+### Ranked gaps
+
+1. **Spec-precision gap, non-blocking**: P8-AC8's committed test (`ReferenceListControllerIT.kt:184-203`) does not actually prove "no cascade" — it only proves the end state is correct, which holds identically whether or not the cascade runs on a no-op rename (the new name equals the old name either way). Confirmed by mutation: removing the no-op short-circuit in `ReferenceListService.kt:76` leaves the entire reference suite green. A discriminating test would need to assert something the cascade would visibly change even on a same-name rename — e.g. spying on `GameRepository` and asserting `saveAndFlush` is never called, or asserting `updatedAt`/`version` on the game is untouched if such a column exists. The underlying service code is correct (the short-circuit is present and functioning); only the test's discriminating power is short of its own name's claim.
+2. **Spec-precision gap, non-blocking**: P8-AC5's cascade-match trim behavior (`GameRepository.kt`'s `lower(trim(...))`) has no test proving it against a game whose stored `competition`/`opponent` value carries surrounding whitespace. Both case-variance fixtures (`"district league"` / `"DISTRICT LEAGUE"`) are already whitespace-free, so removing `trim()` from both queries leaves the suite green. Input-side trimming (on create/rename requests) is well covered; only the cascade's own trim-matching against already-stored values is untested.
+3. **Spec-precision gap, non-blocking**: P8-AC1's case-insensitive-ordering test (`ReferenceListControllerIT.kt:121-130`) uses a fixture (`"zebra"`, `"Apple"`, `"banana"`) whose correct case-insensitive order coincides with plain ASCII lexicographic order (all three names differ only by leading-letter case, and ASCII sorts every uppercase letter before every lowercase one). Removing `.lowercase()` from the sort key leaves the suite green. A discriminating fixture would need names where case-insensitive and case-sensitive order diverge, e.g. `"Banana"` and `"apple"` (case-insensitive: apple, Banana; ASCII: Banana, apple).
+4. **Minor, non-blocking**: the spec's Independent Test (create → attach to two games → rename → both updated → delete → both keep the new name) is proven only in two separate pieces (rename-cascade test and delete-preserves-name test), never as one continuous chain with the same entry and the same two games carrying through both operations.
+
+None of these four gaps represent incorrect shipped behavior — all four were confirmed, by direct mutation or targeted weakening, to be gaps in test *discriminating power* only, not in the implementation itself. The implementation's correctness for all nine ACs is otherwise independently confirmed by source inspection (P8-AC3, AC8's actual short-circuit, AC5's actual `trim()` calls, AC1's actual `.lowercase()` call) and by the three mutations that did kill (swapped cascades, missing exception mapping, missing `@Valid`) plus the `@Transactional`-removal weakening for AC7.
