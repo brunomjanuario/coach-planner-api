@@ -66,3 +66,8 @@ tasks.withType<Test> {
 	// application-test.yml supplies a fixed, obviously-fake value under this profile.
 	systemProperty("spring.profiles.active", "test")
 }
+
+tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
+	// application.yml has no datasource — bootRun needs the dev profile for local Postgres (docker compose up -d db).
+	systemProperty("spring.profiles.active", "dev")
+}
